@@ -444,11 +444,6 @@ function buildSeedState() {
       { id:newId(), name:'Darkshard Amulet', number:1, quality:'Normal', value:'?', description:'An amulet that forms force power into shards of dark side energy flung 20 yards.', effects:'Fires a shard of darkness, consumes flesh like acid' }
     ]
   );
-  players['kinkaid'].droids = [
-    { id:newId(), name:'Sentinel Mk1',               unique:false, materialCost:400,   marketCost:1300,  role:'Chaff',            size:'Human sized',           weaponry:'1x Rifle',                        description:'A rudimentary combat droid with poor AI but the accuracy of a droid. Capable of guard duty or filling out numbers when commanded by someone more tactically minded.',                                                                                                                                                                        source:'Ruin' },
-    { id:newId(), name:'Arachnid Droid Mk:1 — Black Widow', unique:true, materialCost:10000, marketCost:35000, role:'Anti Insurgency', size:'8 ft long, 5 ft tall', weaponry:'2x Suppressive Anti-Infantry Blasters', description:"Designed for anti-insurgency warfare. Armed with two accurate high-fire-rate blasters that shred unarmored targets. Ability to climb all terrain including sheer cliffs makes it a spectacular ambush and counter-insurgency droid. Unique to Torvax.", source:'Custom' },
-    { id:newId(), name:'OT-9 Artillery Droid',       unique:false, materialCost:15000, marketCost:50000, role:'Artillery',         size:'6 ft long, 9 ft tall',  weaponry:'2x Heavy Indirect Shells',        description:'A large artillery droid.',                                                                                                                                                                                                               source:'BLF' }
-  ];
   players['kinkaid'].unitRosters = {
     'Obedience Unit': {
       description:'A veteran squad of Imperial Troopers with a trend towards sadism. Multiple flamethrowers and personal shields. Specializes in urban anti-infantry.',
@@ -803,7 +798,6 @@ function buildSeedState() {
     { id:newId(), category:'Ships', name:'Rage Class Transport', description:'Armored imperial corvette with advanced shielding.', price:2000000, unit:'ship', prerequisite:'Imperial' },
     // Droids
     { id:newId(), category:'Droids', name:'Sentinel Mk1 War Droid', description:'A rudimentary combat droid with good accuracy. Effective as a guard or filler unit. Material cost 400.', price:1300, unit:'unit', prerequisite:'' },
-    { id:newId(), category:'Droids', name:'Arachnid Droid Mk1 (Black Widow)', description:'Anti-insurgency droid. Climbs all terrain, two accurate light blasters. Unique.', price:35000, unit:'unit', prerequisite:'Kinkaid only' },
     { id:newId(), category:'Droids', name:'OT-9 Artillery Droid', description:'A large artillery droid with heavy indirect shells.', price:50000, unit:'unit', prerequisite:'' },
     // Equipment
     { id:newId(), category:'Equipment', name:'Personal Shield', description:'A personal energy shield generator.', price:5000, unit:'unit', prerequisite:'' },
@@ -1378,9 +1372,8 @@ function renderAssets() {
   if(!p) return '';
 
   const tabs = ['formations','assets','structures','misc'];
-  const tabLabels = { formations:'Formations', assets:'Assets', structures:'Structures', misc:'Misc Items', rosters:'Unit Rosters', droids:'Droid Designs' };
+  const tabLabels = { formations:'Formations', assets:'Assets', structures:'Structures', misc:'Misc Items', rosters:'Unit Rosters' };
   if(p.unitRosters && Object.keys(p.unitRosters).length) tabs.push('rosters');
-  if(p.droids && p.droids.length) tabs.push('droids');
 
   return `
   <div class="tab-bar">
@@ -1391,7 +1384,6 @@ function renderAssets() {
   ${assetsTab==='structures' ? renderStructuresTab(p) : ''}
   ${assetsTab==='misc' ? renderMiscTab(p) : ''}
   ${assetsTab==='rosters' ? renderUnitRostersTab(p) : ''}
-  ${assetsTab==='droids' ? renderDroidDesignsTab(p) : ''}
   `;
 }
 
@@ -1702,29 +1694,6 @@ function renderUnitRostersTab(p) {
         </div>`).join('')}
     </div>`;
   }).join('');
-}
-
-function renderDroidDesignsTab(p) {
-  const droids = p.droids || [];
-  if(!droids.length) return '<div class="card"><div class="dim" style="padding:20px">No droid designs.</div></div>';
-
-  return `<div class="card">
-    <div class="card-title">Droid Designs &amp; Schematics</div>
-    <div class="tbl-wrap"><table>
-      <thead><tr><th>Name</th><th>Unique</th><th class="td-num">Material Cost</th><th class="td-num">Market Cost</th><th>Role</th><th>Size</th><th>Weaponry</th><th>Description</th><th>Source</th></tr></thead>
-      <tbody>${droids.map(d=>`<tr>
-        <td class="gold">${esc(d.name)}</td>
-        <td>${d.unique?'<span class="tag tag-gold">Unique</span>':'<span class="tag tag-grey">No</span>'}</td>
-        <td class="td-num">${fmtC(d.materialCost)}</td>
-        <td class="td-num">${fmtC(d.marketCost)}</td>
-        <td><span class="tag tag-blue">${esc(d.role)}</span></td>
-        <td class="dim">${esc(d.size)}</td>
-        <td>${esc(d.weaponry)}</td>
-        <td class="dim" style="max-width:280px">${esc(d.description)}</td>
-        <td class="dim">${esc(d.source)}</td>
-      </tr>`).join('')}</tbody>
-    </table></div>
-  </div>`;
 }
 
 // ============================================================
@@ -2171,8 +2140,8 @@ function renderAdminPlayers() {
   let content = '<div class="dim" style="padding:20px">Select a player to edit.</div>';
   if(adminPlayerSelected && STATE.players[adminPlayerSelected]) {
     const p = STATE.players[adminPlayerSelected];
-    const tabList = ['character','finances','formations','assets','structures','misc','income','populations'];
-    const tabLabels = { character:'Character', finances:'Finances', formations:'Formations', assets:'Assets', structures:'Structures', misc:'Misc', income:'Income', populations:'Populations' };
+    const tabList = ['character','finances','formations','assets','structures','misc','income','populations','trophies','apprentices','artifacts'];
+    const tabLabels = { character:'Character', finances:'Finances', formations:'Formations', assets:'Assets', structures:'Structures', misc:'Misc', income:'Income', populations:'Populations', trophies:'Trophies', apprentices:'Apprentices', artifacts:'Artifacts' };
     content = `
       <div class="tab-bar" style="flex-wrap:wrap">
         ${tabList.map(t=>`<div class="tab ${adminPlayerTab===t?'active':''}" onclick="adminPlayerTab='${t}';render()" style="font-size:12px;padding:5px 10px">${tabLabels[t]}</div>`).join('')}
@@ -2185,6 +2154,9 @@ function renderAdminPlayers() {
       ${adminPlayerTab==='misc'?renderAdminListEdit(p,'miscItems','Misc Items',['name','quantity','category','description','misc']):''}
       ${adminPlayerTab==='income'?renderAdminIncomeEdit(p):''}
       ${adminPlayerTab==='populations'?renderAdminPopEdit(p):''}
+      ${adminPlayerTab==='trophies'?renderAdminListEdit(p,'trophies','Trophies',['name','number','aura','description','conflict','claimedFrom']):''}
+      ${adminPlayerTab==='apprentices'?renderAdminListEdit(p,'apprentices','Apprentices',['name','form','rank','specialization','location','description']):''}
+      ${adminPlayerTab==='artifacts'?renderAdminListEdit(p,'artifacts','Artifact Collection',['name','number','quality','description','effects']):''}
     `;
   }
 

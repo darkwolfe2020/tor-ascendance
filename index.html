@@ -127,7 +127,7 @@
   .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
   .section-header h3 { color: var(--gold); font-size: 14px; text-transform: uppercase; letter-spacing: 1px; }
   hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
-  .text-block { color: var(--text2); line-height: 1.6; font-size: 13px; background: var(--bg3); border-radius: 4px; padding: 10px; margin-top: 4px; }
+  .text-block { color: var(--text2); line-height: 1.6; font-size: 13px; background: var(--bg3); border-radius: 4px; padding: 10px; margin-top: 4px; word-break: break-word; white-space: pre-wrap; }
   .empty-row td { color: var(--text2); text-align: center; padding: 20px; font-style: italic; }
   .badge-deployed { color: var(--green); font-size: 11px; font-weight: 600; }
   .badge-undeployed { color: var(--text2); font-size: 11px; }
@@ -135,6 +135,8 @@
   .inline-edit:hover { border-color: var(--gold); color: var(--gold); }
   input[type=number] { -moz-appearance: textfield; }
   input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+  .admin-ta { height:30px; resize:none; overflow:hidden; box-sizing:border-box; vertical-align:top; width:100%; transition:height 0.12s ease; }
+  .admin-ta:focus { height:auto; overflow:auto; outline:1px solid var(--gold); border-color:var(--gold); }
   .shop-item-card { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 12px; }
   .shop-item-card h4 { color: var(--gold); font-size: 13px; margin-bottom: 4px; }
   .shop-item-card .price { color: var(--red2); font-weight: 700; font-size: 14px; margin: 6px 0; }
@@ -144,7 +146,7 @@
   .img-paste-zone { border: 2px dashed var(--border); border-radius: 6px; padding: 20px; text-align: center; cursor: pointer; min-height: 80px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 10px; transition: border-color 0.2s; }
   .img-paste-zone:focus, .img-paste-zone:hover { border-color: var(--gold); outline: none; }
   .paste-hint { color: var(--text2); font-size: 13px; }
-  .char-portrait { width: 100%; max-height: 300px; object-fit: cover; object-position: top; border-radius: 6px; border: 1px solid var(--border); display: block; margin-bottom: 10px; }
+  .char-portrait { width: 100%; height: 100%; min-height: 220px; object-fit: cover; object-position: top; border-radius: 6px; border: 1px solid var(--border); display: block; }
   /* Location chip selector */
   .loc-chip { display:inline-flex; align-items:center; gap:6px; background:var(--bg3); border:1px solid var(--gold); border-radius:20px; padding:4px 10px; font-size:12px; color:var(--gold); white-space:nowrap; }
   .loc-chip .lx { cursor:pointer; color:var(--text2); font-size:11px; margin-left:2px; }
@@ -861,6 +863,21 @@ function esc(s) {
   if(!s) return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+function numInput(el) {
+  const s = el.value;
+  const neg = s.startsWith('-');
+  const raw = s.replace(/[^0-9]/g,'');
+  if(!raw) { el.value = neg ? '-' : ''; return; }
+  const pos = el.selectionStart;
+  const formatted = (neg?'-':'') + parseInt(raw,10).toLocaleString('en-US');
+  el.value = formatted;
+  const diff = formatted.length - s.length;
+  try { el.setSelectionRange(pos+diff, pos+diff); } catch(e) {}
+}
+function unNum(v) { return parseFloat(String(v).replace(/,/g,''))||0; }
+function adminTaFocus(el) { el.style.overflow='auto'; el.style.height='auto'; el.style.height=Math.max(el.scrollHeight,80)+'px'; }
+function adminTaBlur(el)  { el.style.overflow='hidden'; el.style.height='30px'; }
+function fmtNum(v) { const n=parseFloat(v)||0; return n===0?'0':n.toLocaleString('en-US'); }
 function notify(msg, err=false) {
   const div = document.createElement('div');
   div.className = 'notif-item' + (err?' err':'');
@@ -1146,11 +1163,12 @@ function renderCharacter() {
   const c = p.character;
   const equip = Array.isArray(c.equipment) ? c.equipment.filter(e=>e) : [c.equipment];
 
+  const secLabel = 'font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text2);margin-bottom:6px;margin-top:14px';
   return `
   <div class="card">
     <div class="card-title">${esc(p.displayName)} — Character Sheet</div>
-    <div class="grid2">
-      <div>
+    <div style="display:flex;gap:16px;align-items:stretch">
+      <div style="flex:1;min-width:0">
         <table><tbody>
           <tr><td class="dim" style="width:140px">Name</td><td class="gold" style="font-size:16px;font-weight:700">${esc(c.name)}</td></tr>
           <tr><td class="dim">Rank</td><td><span class="tag tag-red">${esc(c.rank)}</span></td></tr>
@@ -1160,18 +1178,11 @@ function renderCharacter() {
           <tr><td class="dim">Archetype</td><td>${esc(c.archetype)}</td></tr>
           <tr><td class="dim">Lightsaber Form</td><td>${esc(c.lightsaberForm)}</td></tr>
         </tbody></table>
+        <div style="${secLabel}">Equipment</div>
+        <div>${equip.length?equip.map(e=>`<span class="tag tag-grey">${esc(e)}</span>`).join(' '):'<span class="dim">None listed</span>'}</div>
+        ${c.notes?`<div style="${secLabel}">Notes</div><div class="text-block">${esc(c.notes)}</div>`:''}
       </div>
-      <div>
-        ${c.charImage ? `<img src="${c.charImage}" class="char-portrait">` : ''}
-        <div style="margin-bottom:10px">
-          <div class="dim" style="font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Equipment</div>
-          ${equip.length?equip.map(e=>`<span class="tag tag-grey">${esc(e)}</span>`).join(' '):'<span class="dim">None listed</span>'}
-        </div>
-        <div>
-          <div class="dim" style="font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Notes</div>
-          <div class="text-block">${esc(c.notes)||'—'}</div>
-        </div>
-      </div>
+      ${c.charImage?`<div style="width:260px;flex-shrink:0"><img src="${c.charImage}" style="width:100%;height:100%;min-height:220px;object-fit:cover;object-position:top;border-radius:6px;border:1px solid var(--border);display:block"></div>`:''}
     </div>
     <hr>
     <div class="grid2">
@@ -2259,7 +2270,7 @@ function renderAdminFinancesEdit(p) {
     <div class="grid2">
       <div class="form-row">
         <label>Current Balance</label>
-        <input type="number" id="fin-balance" value="${p.finances.balance||0}">
+        <input type="text" inputmode="numeric" id="fin-balance" value="${fmtNum(p.finances.balance||0)}" oninput="numInput(this)">
       </div>
     </div>
     <div class="modal-actions" style="border-top:none;padding-top:0;justify-content:flex-start">
@@ -2269,11 +2280,20 @@ function renderAdminFinancesEdit(p) {
 }
 function saveAdminFinances(pid) {
   const p = STATE.players[pid];
-  p.finances.balance = parseFloat(document.getElementById('fin-balance').value)||0;
+  p.finances.balance = unNum(document.getElementById('fin-balance').value);
   saveState(); notify('Finances saved.'); render();
 }
 
 const MOVABLE_LISTS = { formations:'Formations', assets:'Assets', miscItems:'Misc Items', structures:'Structures' };
+const ADMIN_LIST_FIELDS = {
+  formations: ['name','quantity','strength','category','description','misc'],
+  assets:     ['name','quantity','category','description','misc'],
+  structures: ['name','quantity','category','description','location','locationNote','misc'],
+  miscItems:  ['name','quantity','category','description','misc'],
+  trophies:   ['name','number','aura','description','conflict','claimedFrom'],
+  apprentices:['name','form','rank','specialization','location','description'],
+  artifacts:  ['name','number','quality','description','effects'],
+};
 function renderAdminListEdit(p, listKey, title, fields) {
   const list = p[listKey]||[];
   const colWidth = { name:'150px', description:'220px', category:'100px', quantity:'60px', deployed:'70px', undeployed:'80px', location:'120px', misc:'100px', attachedForces:'120px' };
@@ -2281,13 +2301,13 @@ function renderAdminListEdit(p, listKey, title, fields) {
   const moveOpts = canMove ? Object.entries(MOVABLE_LISTS).filter(([k])=>k!==listKey).map(([k,v])=>`<option value="${k}">${v}</option>`).join('') : '';
   return `<div class="card">
     <div class="card-title">${title} (${list.length})
-      <button class="btn btn-green btn-sm" onclick="adminAddRow('${p.id}','${listKey}','${JSON.stringify(fields).replace(/'/g,'&apos;')}')">+ Add Row</button>
+      <button class="btn btn-green btn-sm" onclick="adminAddRow('${p.id}','${listKey}')">+ Add Row</button>
     </div>
     <div class="tbl-wrap"><table>
       <thead><tr>${fields.map(f=>`<th style="min-width:${colWidth[f]||'80px'}">${f}</th>`).join('')}<th>Actions</th></tr></thead>
       <tbody>
         ${list.map((row,idx)=>`<tr>
-          ${fields.map(f=>`<td><input type="${['quantity','deployed','undeployed'].includes(f)?'number':'text'}" value="${esc(row[f]||'')}" style="min-width:${colWidth[f]?'calc('+colWidth[f]+' - 20px)':'80px'}" onchange="adminUpdateCell('${p.id}','${listKey}',${idx},'${f}',this.value)"></td>`).join('')}
+          ${fields.map(f=>{const isNum=['quantity','deployed','undeployed','strength','number'].includes(f);const w=colWidth[f]?'calc('+colWidth[f]+' - 20px)':'80px';return isNum?`<td><input type="text" value="${fmtNum(row[f]||0)}" style="min-width:${w}" oninput="numInput(this)" inputmode="numeric" onchange="adminUpdateCell('${p.id}','${listKey}',${idx},'${f}',this.value)"></td>`:`<td><textarea class="admin-ta" style="min-width:${w}" onfocus="adminTaFocus(this)" onblur="adminTaBlur(this)" onchange="adminUpdateCell('${p.id}','${listKey}',${idx},'${f}',this.value)">${esc(row[f]||'')}</textarea></td>`;}).join('')}
           <td style="white-space:nowrap">
             ${canMove?`<select style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:4px;padding:2px 4px;font-size:11px;font-family:inherit;margin-right:4px" onchange="if(this.value){adminMoveRow('${p.id}','${listKey}',${idx},this.value);this.value=''}"><option value="">↔ Move…</option>${moveOpts}</select>`:''}
             <button class="btn btn-red btn-sm" onclick="adminDeleteRow('${p.id}','${listKey}',${idx})">✕</button>
@@ -2335,7 +2355,7 @@ function adminUpdateCell(pid, listKey, idx, field, value) {
   if(!p||!p[listKey]) return;
   const item = p[listKey][idx];
   if(!item) return;
-  item[field] = ['quantity','deployed','undeployed','strength'].includes(field) ? (parseFloat(value)||0) : value;
+  item[field] = ['quantity','deployed','undeployed','strength','number','adultPop','gdpPerCapita','totalGdp','taxes'].includes(field) ? unNum(value) : value;
   saveState();
 }
 function adminDeleteRow(pid, listKey, idx) {
@@ -2343,8 +2363,8 @@ function adminDeleteRow(pid, listKey, idx) {
   STATE.players[pid][listKey].splice(idx,1);
   saveState(); notify('Row deleted.'); render();
 }
-function adminAddRow(pid, listKey, fieldsJSON) {
-  const fields = JSON.parse(fieldsJSON.replace(/&apos;/g,"'"));
+function adminAddRow(pid, listKey) {
+  const fields = ADMIN_LIST_FIELDS[listKey] || [];
   const newRow = { id: newId() };
   fields.forEach(f => newRow[f] = ['quantity'].includes(f)?0:'');
   if(['formations','assets','miscItems'].includes(listKey)) {
@@ -2366,10 +2386,10 @@ function renderAdminIncomeEdit(p) {
       <thead><tr><th>Name</th><th>Qty</th><th>Income</th><th>Upkeep</th><th>Net</th><th>Total Net</th><th></th></tr></thead>
       <tbody>
         ${list.map((r,idx)=>`<tr>
-          <td><input type="text" value="${esc(r.name)}" style="min-width:140px" onchange="adminUpdateCell('${p.id}','income',${idx},'name',this.value)"></td>
-          <td><input type="number" value="${r.quantity}" style="width:60px" onchange="adminUpdateIncomeRow('${p.id}',${idx},'quantity',this.value)"></td>
-          <td><input type="number" value="${r.income}" style="width:90px" onchange="adminUpdateIncomeRow('${p.id}',${idx},'income',this.value)"></td>
-          <td><input type="number" value="${r.upkeep}" style="width:90px" onchange="adminUpdateIncomeRow('${p.id}',${idx},'upkeep',this.value)"></td>
+          <td><textarea class="admin-ta" style="min-width:140px" onfocus="adminTaFocus(this)" onblur="adminTaBlur(this)" onchange="adminUpdateCell('${p.id}','income',${idx},'name',this.value)">${esc(r.name)}</textarea></td>
+          <td><input type="text" inputmode="numeric" value="${fmtNum(r.quantity)}" style="width:60px" oninput="numInput(this)" onchange="adminUpdateIncomeRow('${p.id}',${idx},'quantity',this.value)"></td>
+          <td><input type="text" inputmode="numeric" value="${fmtNum(r.income)}" style="width:90px" oninput="numInput(this)" onchange="adminUpdateIncomeRow('${p.id}',${idx},'income',this.value)"></td>
+          <td><input type="text" inputmode="numeric" value="${fmtNum(r.upkeep)}" style="width:90px" oninput="numInput(this)" onchange="adminUpdateIncomeRow('${p.id}',${idx},'upkeep',this.value)"></td>
           <td class="td-num dim">${fmtCredits(r.net)}</td>
           <td class="td-num">${fmtCredits(r.totalNet)}</td>
           <td><button class="btn btn-red btn-sm" onclick="adminDeleteRow('${p.id}','income',${idx})">✕</button></td>
@@ -2388,7 +2408,7 @@ function adminAddIncomeRow(pid) {
 function adminUpdateIncomeRow(pid, idx, field, value) {
   const r = STATE.players[pid].income[idx];
   if(!r) return;
-  r[field] = parseFloat(value)||0;
+  r[field] = unNum(value);
   r.net = r.income - r.upkeep;
   r.totalNet = r.net * r.quantity;
   saveState(); render();
@@ -2405,7 +2425,7 @@ function renderAdminPopEdit(p) {
       <thead><tr>${fields.map(f=>`<th>${f}</th>`).join('')}<th></th></tr></thead>
       <tbody>
         ${list.map((row,idx)=>`<tr>
-          ${fields.map(f=>`<td><input type="${['adultPop','gdpPerCapita','totalGdp','taxes'].includes(f)?'number':'text'}" value="${esc(row[f]||'')}" style="min-width:80px" onchange="adminUpdateCell('${p.id}','populations',${idx},'${f}',this.value)"></td>`).join('')}
+          ${fields.map(f=>{const isNum=['adultPop','gdpPerCapita','totalGdp','taxes'].includes(f);return isNum?`<td><input type="text" value="${fmtNum(row[f]||0)}" style="min-width:80px" oninput="numInput(this)" inputmode="numeric" onchange="adminUpdateCell('${p.id}','populations',${idx},'${f}',this.value)"></td>`:`<td><textarea class="admin-ta" style="min-width:80px" onfocus="adminTaFocus(this)" onblur="adminTaBlur(this)" onchange="adminUpdateCell('${p.id}','populations',${idx},'${f}',this.value)">${esc(row[f]||'')}</textarea></td>`;}).join('')}
           <td><button class="btn btn-red btn-sm" onclick="adminDeleteRow('${p.id}','populations',${idx})">✕</button></td>
         </tr>`).join('')}
         ${list.length===0?`<tr class="empty-row"><td colspan="${fields.length+1}">No populations.</td></tr>`:''}

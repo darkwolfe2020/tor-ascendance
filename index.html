@@ -1,0 +1,2923 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Old Republic: Ascendance</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --bg2: #111118;
+    --bg3: #18181f;
+    --border: #2a2a38;
+    --red: #c0392b;
+    --red2: #e74c3c;
+    --gold: #d4af37;
+    --gold2: #f0d060;
+    --text: #d0d0e0;
+    --text2: #8888aa;
+    --green: #27ae60;
+    --blue: #2980b9;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Trebuchet MS', sans-serif; font-size: 14px; min-height: 100vh; }
+
+  /* NAV */
+  #topbar { background: var(--bg2); border-bottom: 1px solid var(--red); padding: 0 16px; display: flex; align-items: center; height: 48px; gap: 16px; position: sticky; top: 0; z-index: 100; }
+  #topbar .logo { color: var(--gold); font-size: 18px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; flex-shrink: 0; }
+  #topbar .logo span { color: var(--red2); }
+  #nav-links { display: flex; gap: 4px; flex: 1; }
+  .nav-btn { background: none; border: none; color: var(--text2); cursor: pointer; padding: 6px 12px; border-radius: 4px; font-size: 13px; transition: all 0.15s; }
+  .nav-btn:hover, .nav-btn.active { background: var(--bg3); color: var(--gold); }
+  #topbar .right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  #player-badge { color: var(--gold2); font-size: 13px; font-weight: 600; }
+  .btn { display: inline-block; padding: 6px 14px; border-radius: 4px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.15s; }
+  .btn-red { background: var(--red); color: #fff; }
+  .btn-red:hover { background: var(--red2); }
+  .btn-gold { background: var(--gold); color: #111; }
+  .btn-gold:hover { background: var(--gold2); }
+  .btn-sm { padding: 3px 9px; font-size: 12px; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text2); }
+  .btn-ghost:hover { border-color: var(--gold); color: var(--gold); }
+  .btn-green { background: var(--green); color: #fff; }
+  .btn-blue { background: var(--blue); color: #fff; }
+
+  /* MAIN */
+  #app { padding: 20px; max-width: 1400px; margin: 0 auto; }
+
+  /* CARDS */
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 16px; margin-bottom: 16px; }
+  .card-title { color: var(--gold); font-size: 13px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+
+  /* STAT BOX */
+  .stat-box { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 14px; text-align: center; }
+  .stat-box .label { color: var(--text2); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+  .stat-box .value { font-size: 22px; font-weight: 700; color: var(--gold); }
+  .stat-box .value.neg { color: var(--red2); }
+  .stat-box .value.pos { color: var(--green); }
+
+  /* TABLES */
+  .tbl-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { background: var(--bg3); color: var(--text2); font-weight: 600; text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
+  td { padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:hover td { background: rgba(255,255,255,0.03); }
+  .td-num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pos { color: var(--green); }
+  .neg { color: var(--red2); }
+  .gold { color: var(--gold); }
+  .dim { color: var(--text2); }
+
+  /* TAGS */
+  .tag { display: inline-block; padding: 2px 7px; border-radius: 3px; font-size: 11px; font-weight: 600; margin: 1px; }
+  .tag-red { background: rgba(192,57,43,0.25); color: var(--red2); border: 1px solid var(--red); }
+  .tag-gold { background: rgba(212,175,55,0.2); color: var(--gold); border: 1px solid var(--gold); }
+  .tag-green { background: rgba(39,174,96,0.2); color: var(--green); border: 1px solid var(--green); }
+  .tag-blue { background: rgba(41,128,185,0.2); color: var(--blue); border: 1px solid var(--blue); }
+  .tag-grey { background: rgba(255,255,255,0.07); color: var(--text2); border: 1px solid var(--border); }
+
+  /* FORMS */
+  input, select, textarea { background: var(--bg3); border: 1px solid var(--border); color: var(--text); border-radius: 4px; padding: 6px 10px; font-size: 13px; font-family: inherit; width: 100%; }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--gold); }
+  textarea { resize: vertical; min-height: 60px; }
+  label { color: var(--text2); font-size: 12px; display: block; margin-bottom: 4px; }
+  .form-row { margin-bottom: 12px; }
+  .form-row-inline { display: flex; gap: 10px; align-items: flex-end; }
+
+  /* MODAL */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 500; display: flex; align-items: center; justify-content: center; }
+  .modal { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 24px; min-width: 420px; max-width: 640px; width: 90vw; max-height: 85vh; overflow-y: auto; }
+  .modal h2 { color: var(--gold); margin-bottom: 16px; font-size: 16px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
+
+  /* LOGIN PAGE */
+  #login-page { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 80vh; gap: 16px; }
+  #login-page h1 { color: var(--gold); font-size: 32px; letter-spacing: 4px; text-transform: uppercase; }
+  #login-page p { color: var(--text2); letter-spacing: 1px; }
+  .player-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; max-width: 900px; width: 100%; }
+  .player-card { width: 180px; }
+  .player-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 16px; cursor: pointer; transition: all 0.2s; text-align: center; }
+  .player-card:hover { border-color: var(--gold); background: var(--bg3); }
+  .player-card .pc-name { color: var(--gold); font-weight: 700; font-size: 15px; margin-bottom: 4px; }
+  .player-card .pc-char { color: var(--text2); font-size: 12px; }
+  .player-card .pc-rank { color: var(--red2); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
+
+  /* DEPLOY CONTROL */
+  .deploy-ctrl { display: flex; align-items: center; gap: 6px; }
+  .deploy-ctrl input { width: 55px; text-align: center; }
+  .deploy-ctrl .sep { color: var(--text2); }
+
+  /* NOTIFICATIONS */
+  #notif { position: fixed; bottom: 20px; right: 20px; z-index: 1000; display: flex; flex-direction: column; gap: 8px; }
+  .notif-item { background: var(--bg3); border-left: 3px solid var(--green); padding: 10px 14px; border-radius: 4px; font-size: 13px; min-width: 220px; animation: slideIn 0.2s; }
+  .notif-item.err { border-color: var(--red2); }
+  @keyframes slideIn { from { opacity:0; transform: translateX(30px); } to { opacity:1; transform: translateX(0); } }
+
+  /* SECTION TABS */
+  .tab-bar { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+  .tab { padding: 8px 16px; cursor: pointer; color: var(--text2); border-bottom: 2px solid transparent; font-size: 13px; font-weight: 600; transition: all 0.15s; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+
+  /* MISC */
+  .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .section-header h3 { color: var(--gold); font-size: 14px; text-transform: uppercase; letter-spacing: 1px; }
+  hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+  .text-block { color: var(--text2); line-height: 1.6; font-size: 13px; background: var(--bg3); border-radius: 4px; padding: 10px; margin-top: 4px; }
+  .empty-row td { color: var(--text2); text-align: center; padding: 20px; font-style: italic; }
+  .badge-deployed { color: var(--green); font-size: 11px; font-weight: 600; }
+  .badge-undeployed { color: var(--text2); font-size: 11px; }
+  .inline-edit { cursor: pointer; border-bottom: 1px dashed var(--border); }
+  .inline-edit:hover { border-color: var(--gold); color: var(--gold); }
+  input[type=number] { -moz-appearance: textfield; }
+  input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+  .shop-item-card { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 12px; }
+  .shop-item-card h4 { color: var(--gold); font-size: 13px; margin-bottom: 4px; }
+  .shop-item-card .price { color: var(--red2); font-weight: 700; font-size: 14px; margin: 6px 0; }
+  .shop-item-card p { color: var(--text2); font-size: 12px; line-height: 1.4; }
+  .shop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+  #pending-badge { background: var(--red); color: #fff; border-radius: 10px; padding: 1px 6px; font-size: 11px; margin-left: 4px; }
+  .img-paste-zone { border: 2px dashed var(--border); border-radius: 6px; padding: 20px; text-align: center; cursor: pointer; min-height: 80px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 10px; transition: border-color 0.2s; }
+  .img-paste-zone:focus, .img-paste-zone:hover { border-color: var(--gold); outline: none; }
+  .paste-hint { color: var(--text2); font-size: 13px; }
+  .char-portrait { width: 100%; max-height: 300px; object-fit: cover; object-position: top; border-radius: 6px; border: 1px solid var(--border); display: block; margin-bottom: 10px; }
+  /* Location chip selector */
+  .loc-chip { display:inline-flex; align-items:center; gap:6px; background:var(--bg3); border:1px solid var(--gold); border-radius:20px; padding:4px 10px; font-size:12px; color:var(--gold); white-space:nowrap; }
+  .loc-chip .lx { cursor:pointer; color:var(--text2); font-size:11px; margin-left:2px; }
+  .loc-chip .lx:hover { color:var(--red2); }
+  .loc-selector { position:relative; flex:1; min-width:0; }
+  .loc-search-inp { background:var(--bg3); border:1px solid var(--border); color:var(--text); border-radius:4px; padding:5px 8px; font-size:13px; width:100%; font-family:inherit; }
+  .loc-search-inp:focus { border-color:var(--gold); outline:none; }
+  .loc-dd { position:absolute; top:calc(100% + 2px); left:0; min-width:180px; width:max-content; max-width:320px; background:var(--bg2); border:1px solid var(--border); border-radius:4px; z-index:400; max-height:200px; overflow-y:auto; box-shadow:0 6px 20px rgba(0,0,0,0.6); }
+  .loc-opt { padding:6px 12px; cursor:pointer; font-size:13px; }
+  .loc-opt:hover { background:var(--bg3); color:var(--gold); }
+  .loc-sec { padding:3px 12px 2px; font-size:10px; text-transform:uppercase; letter-spacing:1px; color:var(--text2); background:var(--bg); pointer-events:none; }
+  .loc-create { color:var(--green); border-top:1px solid var(--border); }
+  /* Deployed forces accordion */
+  .world-card { background:var(--bg2); border:1px solid var(--border); border-radius:6px; margin-bottom:12px; overflow:hidden; }
+  .world-hdr { display:flex; align-items:center; gap:10px; padding:12px 16px; cursor:pointer; transition:background 0.15s; user-select:none; }
+  .world-hdr:hover { background:var(--bg3); }
+  .world-hdr .world-name { color:var(--gold); font-weight:700; font-size:14px; letter-spacing:1px; text-transform:uppercase; }
+  .world-hdr .world-meta { color:var(--text2); font-size:12px; margin-left:auto; }
+  .world-hdr .chevron { color:var(--text2); font-size:12px; }
+  .world-body { padding:0 12px 12px; }
+  .subloc-row { border:1px solid var(--border); border-radius:4px; margin-bottom:6px; overflow:hidden; }
+  .subloc-hdr { display:flex; align-items:center; gap:8px; padding:7px 12px; cursor:pointer; background:var(--bg3); transition:background 0.15s; user-select:none; }
+  .subloc-hdr:hover { background:var(--bg); }
+  .subloc-hdr .subloc-name { font-weight:600; font-size:13px; }
+  .subloc-hdr .subloc-meta { color:var(--text2); font-size:11px; margin-left:auto; }
+  .subloc-body { padding:10px 12px; border-top:1px solid var(--border); }
+  .struct-info { background:var(--bg); border-radius:4px; padding:8px 12px; margin-bottom:8px; font-size:12px; border-left:3px solid var(--blue); }
+  .loyalty-high { color: var(--green); } .loyalty-medium { color: var(--gold); } .loyalty-low { color: var(--red2); }
+</style>
+</head>
+<body>
+<div id="topbar">
+  <div class="logo">The Old Republic: <span>Ascendance</span></div>
+  <div id="nav-links"></div>
+  <div class="right">
+    <span id="player-badge"></span>
+    <button class="btn btn-ghost btn-sm" id="logout-btn" style="display:none" onclick="logout()">Sign Out</button>
+  </div>
+</div>
+<div id="app"></div>
+<div id="notif"></div>
+
+<script>
+// ============================================================
+// DATA MODEL
+// ============================================================
+const DEFAULT_ADMIN_PASSWORD = 'rta2024';
+const DATA_VERSION = 6;
+
+// ============================================================
+// SUPABASE (data only — no auth)
+// ============================================================
+const SUPABASE_URL = 'https://aosvuxygkbpmsedlnuyt.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvc3Z1eHlna2JwbXNlZGxudXl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMzk5NTUsImV4cCI6MjA5MjgxNTk1NX0.fPeLvX72aGwQzqyEfdjpiVR_9u1T-KTPRJp_9qIEois';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+let _saveTimer = null;
+
+function newId() { return '_' + Math.random().toString(36).slice(2,9); }
+
+function loadState() {
+  try {
+    const s = localStorage.getItem('rta_state');
+    if(s) {
+      const parsed = JSON.parse(s);
+      if((parsed._version||0) >= DATA_VERSION) return parsed;
+    }
+  } catch(e){}
+  return null;
+}
+function saveState() {
+  STATE._version = DATA_VERSION;
+  localStorage.setItem('rta_state', JSON.stringify(STATE));
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(async () => {
+    try {
+      await sb.from('game_state').upsert({ id: 'main', data: STATE, updated_at: new Date().toISOString() });
+    } catch(e) { console.error('Supabase save failed:', e); }
+  }, 1500);
+}
+function migrateState(state) {
+  Object.values(state.players||{}).forEach(p => {
+    ['formations','assets','miscItems'].forEach(key => {
+      (p[key]||[]).forEach(item => {
+        if(!item.deployments) {
+          const dep = Number(item.deployed)||0;
+          item.deployments = dep>0 ? [{location:item.location||'',qty:dep}] : [];
+          delete item.deployed;
+          delete item.location;
+        }
+      });
+    });
+  });
+  return state;
+}
+
+// ============================================================
+// SEED DATA
+// ============================================================
+function buildSeedState() {
+  const players = {};
+
+  // Helper to make a player skeleton
+  function mkPlayer(id, displayName, charData, finances, structures, formations, assets, miscItems, income, production, populations, trophies, apprentices, artifacts) {
+    return { id, displayName, character: charData, finances, structures: structures||[], formations: formations||[], assets: assets||[], miscItems: miscItems||[], income: income||[], production: production||[], populations: populations||[], trophies: trophies||[], apprentices: apprentices||[], artifacts: artifacts||[] };
+  }
+
+  // ----- FASHODA -----
+  players['fashoda'] = mkPlayer('fashoda','Fashoda',
+    { name:"He'stan Kijibari", rank:'Lord', age:27, species:'Cathar', ideology:'Revanite', archetype:'Shadow', lightsaberForm:'Djem So',
+      fightingStyle:"Prefers striking from unexpected angles with Force-augmented speed, then disengaging using stealth to reposition. Uses hit and run tactics, setting up devastating strikes when opponents are most vulnerable. Lacks endurance for prolonged exchanges.",
+      equipment:['-Stealth Generator',' Saber Staff','Beskar Chestplate, Helm, Vambraces, Gloves','Jetpack'],
+      personality:"He'stan believes himself to be burdened with a messianic purpose. Obsessed with accumulating power not for himself but to save the galaxy. Prepared to wear any mask and perform any duty necessary.",
+      background:"Born on Taris to Cathar refugees. Trained as a Jedi Shadow under Master Sulan, then defected to the Sith after visions of an unknown enemy from Wild Space. Inducted into the Cult of Revan on Dromund Kaas.",
+      notes:'Revanite',
+      specificSkills:[] },
+    { balance:619500, startingBalance:619500 },
+    [], // structures
+    [
+      { id:newId(), name:'Phalanxes', quantity:2, category:'Squad', description:'A squad of 10 freedmen, decently skilled combatants armed with Imperial requisitioned equipment.', deployed:0, undeployed:2, location:'', misc:'' }
+    ],
+    [
+      { id:newId(), name:'Kill Team 3', quantity:1, category:'Fire Team', description:'A unique squad of bodyguards. 2x Mandalorian Initiates and a warrior along with a Trandoshian cannibal sniper.', deployed:0, undeployed:1, location:'', misc:'' },
+      { id:newId(), name:'Hovertank', quantity:1, category:'Armored Vehicle', description:'A hovertank salvaged from criminals on Taris.', deployed:0, undeployed:1, location:'', misc:'' }
+    ],
+    [],
+    [
+      { id:newId(), name:'Kill Team Wages', quantity:4, income:0, upkeep:250, net:-250, totalNet:-1000 },
+      { id:newId(), name:'Rim Wage', quantity:20, income:0, upkeep:100, net:-100, totalNet:-2000 },
+      { id:newId(), name:'King Stipend', quantity:1, income:300000, upkeep:0, net:300000, totalNet:300000 }
+    ],
+    [],
+    [
+      { id:newId(), name:'Cathartopia', adultPop:4100, loyalty:'Low', gdpPerCapita:80, totalGdp:328000, taxes:0, additionalInfo:'' }
+    ],
+    [], [], []
+  );
+  players['fashoda'].factionData = {
+    catharCouncil: [
+      { role:'Head of the Military, Head of Government', name:'Bashun',  ideology:'Pro Republic' },
+      { role:'Scavengers',                               name:'Kyaza',   ideology:'Republic Leaning' },
+      { role:'Pacifist',                                 name:'Thanor',  ideology:'Neutral' },
+      { role:'Old Government Figure',                    name:'Raelado', ideology:'Do Not Care' },
+      { role:'Head of the Navy (no Navy Exists)',        name:'Urica',   ideology:'Pro Independence' },
+      { role:'Social Leader',                            name:'Shanin',  ideology:'Do Not Care' },
+      { role:'Cathar Trade Union',                       name:'Coran',   ideology:'Empire Leaning' },
+      { role:"Prince's Party",                           name:'Feran',   ideology:'Pro Empire' }
+    ],
+    catharIdeologies: [
+      { ideology:'Pro Republic',      population:320000, percent:0.40 },
+      { ideology:'Republic Leaning',  population:80000,  percent:0.10 },
+      { ideology:'Neutral',           population:88000,  percent:0.11 },
+      { ideology:'Do Not Care',       population:120000, percent:0.15 },
+      { ideology:'Pro Independence',  population:64000,  percent:0.08 },
+      { ideology:'Empire Leaning',    population:120000, percent:0.15 },
+      { ideology:'Pro Empire',        population:8000,   percent:0.01 }
+    ],
+    catharTotalPop: 800000,
+    deathClawSegments: [
+      { base:'Headquarters',    troops:'500?', description:'The Headquarters for operations on world, the Death Claw Pirates utilize the base for their larger ships and the storage of the majority of their men.' },
+      { base:'Hidden Outpost',  troops:'30?',  description:'A hidden outpost spotted by II. Watches and coordinates raids on the Cathar Salvaging operations.' },
+      { base:'Raiding Post',    troops:'50?',  description:'The raiding post which stores the men and loot for salvager raids.' },
+      { base:'Hidden Hanger',   troops:'100?', description:'The hidden hanger which stores the squadron of starfighters and shuttles that the pirates operate on world.' },
+      { base:'FOB',             troops:'50?',  description:'A forward operating base. Publicly known, used to drag attention and shelter exposed raiders. Well defended.' },
+      { base:'Raiding Post 2',  troops:'40?',  description:'A raiding post the Cathar know about, used to raid Imperial operations.' }
+    ],
+    internalGroups: [
+      { name:"Peaceful Independents",      description:"They wish for an independent Cathar state, but one of peace — a peaceful existence in the southern rim, buttressed by a small professional military.", policy:'Pacifist',                        population:71000, percent:0.10 },
+      { name:"Fanatic He'stan Loyalists",  description:"Cathar who have begun to view He'stan as the perfect ruler. They want him to crown himself King of the Cathar.", policy:'Expansionist',                    population:7100,  percent:0.04 },
+      { name:"Militarist Nationalists",    description:"A rising party that wishes for a military state that strikes back against the Mandalorians. Everyone serves the war machine for the good of the people.", policy:'Militarist, Xenophobe, Expansionist', population:2840,  percent:0.13 },
+      { name:"Federalists",                description:"Wish for a united Cathar democratic government with democratically elected leaders, free from the greater galactic powers.", policy:'Free Government',                  population:9230,  percent:0.40 },
+      { name:"Free State Communion",       description:"Wish for a state that does not impede on them at all — a spring from which the Cathar race can spread across the galaxy.", policy:'Low Government Oversight',         population:28400, percent:0.13 },
+      { name:"Military Loyalists",         description:"Military men, primarily from within the navy and old military command. Want a powerful military, but do wish to have a nation to return to.", policy:'Militarist',                       population:9230,  percent:0.20 },
+      { name:"(Unnamed Group)",            description:"",                                                                                                                                               policy:'',                                 population:14200, percent:0 }
+    ],
+    notables: [
+      { name:'Horrsk',  branch:'Trandoshian Auxiliaries', description:"Horrsk leads the Trandoshian auxiliaries rallied to the cause of He'stan. A brutal cannibal, he cares solely for bloodshed and violence." },
+      { name:'Locust',  branch:'Salvagers',               description:"Self-centered and drawn by the victory of He'stan. A brutal commander who wishes to grow his personal wealth and power." },
+      { name:'Urica',   branch:'Fleet',                   description:"A consummate nationalist. Fights for a Cathar state — an independent galactic polity that can make its own way. Expects a Cathar-headed government." }
+    ],
+    government: {
+      headOfState: 'N/A',
+      headOfCivilianGovernment: 'Morvin',
+      headOfMilitary: "He'stan (Tetrarch)",
+      advisoryCouncil: [
+        { faction:'Free Living Coalition (Free-State, Peaceful)', representative:'Veral' },
+        { faction:'Military Loyalists',                           representative:'Urica' },
+        { faction:'Federalists',                                  representative:'Goral' },
+        { faction:'Salvagers',                                    representative:'Locust' },
+        { faction:'N/A',                                          representative:'Ashara' }
+      ],
+      military: {
+        headOfMilitary: "He'stan",
+        headOfArmy: 'N/A',
+        headOfNavy: 'Urica',
+        headOfAuxiliaries: 'Horrsk (Trandoshian Auxiliaries) / Locust (Salvagers)'
+      }
+    }
+  };
+
+  // ----- KINKAID -----
+  players['kinkaid'] = mkPlayer('kinkaid','Kinkaid',
+    { name:'Lord Torvax', rank:'Lord', age:22, species:'Human', ideology:'Traditionalist', archetype:'Sorcerer', lightsaberForm:'Form III: Soresu',
+      fightingStyle:'Very defensive, focused lightsaber dueling. A penchant for parries and deflections rather than blocks with a tendency to sidestep counter with bursts of lightning. Lightning inflicts significant damage rather than stunning.',
+      equipment:['Personal Shield'],
+      personality:'Cruel, Wrathful, Tyrannical, Arrogant, Bitter',
+      background:"Torvax spent 18 years as a Hutt slave on Nar Shaddaa before his Force sensitivity was discovered. Arrived at Korriban and reversed his fortunes entirely, emerging as a Sith Lord and free agent. Now seeks every opportunity to prove his power.",
+      notes:'Has schematics for Arachnid Mk1, C-13 Prototype, OT-9 Artillery, BAF-888 Defense Droid, Battle Droid C-10, Sentinal Mk1.',
+      specificSkills:[] },
+    { balance:392450, startingBalance:392450 },
+    [
+      { id:newId(), name:'Balmoran Factory', quantity:1, category:'Production', description:'A small factory being repaired to produce droids. Factory Lines 1 and 2 online. Small R&D segment and slave quarters.', location:'Balmorra Capital Region', attachedForces:'3x Sentinel Squads', misc:'3,000,000 Raw Value' },
+      { id:newId(), name:'Balmorran Compound', quantity:1, category:'Storage', description:'A sizable compound on Balmorra holding various facilities, defenses, outer wall, and capacity for expansion.', location:'Balmorra Capital Region (next to factory)', attachedForces:'2x Sentinel Squads', misc:'400,000 Raw Value' },
+      { id:newId(), name:'Warehouse', quantity:1, category:'Storage', description:'A mid-sized warehouse next to the Factory compound.', location:'Balmorra capital region', attachedForces:'1x Sentinel Squad', misc:'30,000 Raw Value' },
+      { id:newId(), name:'Beregan (Voln)', quantity:1, category:'Settlement', description:'A village with a luxury marble quarry. Base with hangar for 5 starfighters and barracks for 60 men.', location:'Beregan', attachedForces:'15x Sentinel Squads, 1x IDC Squad, 10x Militia, 20x Speeders, etc.', misc:'' },
+      { id:newId(), name:'Balmorra Plot of Land', quantity:1, category:'Land', description:'Plot of land taken by the IDC near the BLF frontline.', location:'Balmorra', attachedForces:'', misc:'50,000 Raw Value' },
+      { id:newId(), name:'Beregan (Fela)', quantity:1, category:'Settlement', description:'A farming settlement supplying much of the food for the region.', location:'Beregan', attachedForces:'', misc:'' },
+      { id:newId(), name:'Begeran (Moria)', quantity:1, category:'Settlement', description:'An urban settlement with minor productive industry.', location:'Beregan', attachedForces:'', misc:'' },
+      { id:newId(), name:'Begeran PDF Training Facility', quantity:1, category:'Production', description:'A facility for training top-of-the-line PDF personnel. Firing range, barracks, gym, classroom. Capacity for 100 men per month.', location:'Beregan', attachedForces:'', misc:'80,000 Raw Value' }
+    ],
+    [
+      { id:newId(), name:'Obedience Unit', quantity:1, category:'Squad', description:'A veteran squad of Imperial Troopers with a trend towards sadism and multiple flamethrowers plus personal shields. Specializes in urban anti-infantry.', deployed:0, undeployed:1, location:'', misc:'' },
+      { id:newId(), name:'Salvager Team', quantity:2, category:'Fire Team', description:'3 salvagers and one slicer led by Jack Kade with his warsword.', deployed:2, undeployed:0, location:'1x Ziost, 1x Balmorra', misc:'' },
+      { id:newId(), name:'Militia Squad', quantity:10, category:'Squad', description:'A squad of 10 Militia raised on Beregan.', deployed:5, undeployed:5, location:'5x Begeran', misc:'' },
+      { id:newId(), name:'Mercenary Platoon', quantity:3, category:'Platoon', description:'A platoon of 50 PDF-level mercenaries, decently trained and equipped.', deployed:3, undeployed:0, location:'3x Begeran', misc:'' },
+      { id:newId(), name:'Mark I Sentinel Droid Squad', quantity:29, category:'Droid', description:'The Sentinel MK1 Droid. Effective security droid or number filler. Very cheap; squad of 10.', deployed:26, undeployed:3, location:'1x Warehouse, 3x Factory, 2x Stronghold, 10x Begeran, 5 with Haks', misc:'' },
+      { id:newId(), name:'PDF Platoon', quantity:2, category:'Platoon', description:'A platoon of 50 PDF-level troopers trained at the Begeren Training Facility.', deployed:2, undeployed:0, location:'3x Begeran', misc:'' }
+    ],
+    [
+      { id:newId(), name:'The Silooth', quantity:1, category:'Shuttle', description:'A light shuttle with a blaster.', deployed:0, undeployed:1, location:'', misc:'' },
+      { id:newId(), name:'JA3 Speeder', quantity:20, category:'Speeder', description:'A civilian speeder, unarmored but functional.', deployed:20, undeployed:0, location:'20 Begeran', misc:'' },
+      { id:newId(), name:'Speeder Truck', quantity:7, category:'Utility Vehicle', description:'A speeder truck for carrying small amounts of supplies or equipment.', deployed:7, undeployed:0, location:'7 Begeren', misc:'' },
+      { id:newId(), name:'Speeder AA Technical', quantity:8, category:'Speeder', description:'A speeder with armor plating and a rear flak cannon.', deployed:8, undeployed:0, location:'Begeran', misc:'' },
+      { id:newId(), name:'C10 War Droid', quantity:3, category:'War Droid', description:'A heavy war droid with a heavy blaster cannon. 8 feet tall armored hull.', deployed:3, undeployed:0, location:'3 Factory', misc:'' },
+      { id:newId(), name:'Gelia Personal Freighter', quantity:1, category:'Freighter', description:'High-value transport freighter modified with a bedroom and office in the rear bay.', deployed:1, undeployed:0, location:'Begeran', misc:'' },
+      { id:newId(), name:'Tiny Freighter', quantity:1, category:'Freighter', description:'A civilian freighter used to transport marble from Begeran.', deployed:1, undeployed:0, location:'Begeran', misc:'' },
+      { id:newId(), name:'Ancient Sith Starfighter', quantity:5, category:'Fighter', description:'Ancient Sith Starfighters, salvaged, stolen, or captured. Effective in the modern era.', deployed:5, undeployed:0, location:'Begeran', misc:'' },
+      { id:newId(), name:'OT-9 Artillery Droid', quantity:4, category:'War Droid', description:'A large Artillery Droid.', deployed:2, undeployed:2, location:'Begeran', misc:'' },
+      { id:newId(), name:'Tadpole Class Shuttle', quantity:5, category:'Shuttle', description:'Light aftermarket shuttle with a large rear bay and two forward cannons. Carries 18.', deployed:5, undeployed:0, location:'Begeran', misc:'' },
+      { id:newId(), name:'Medical Pavillion Tent', quantity:2, category:'FOB', description:'A medical FOB of the most hastened form.', deployed:2, undeployed:0, location:'Begeren', misc:'' },
+      { id:newId(), name:'IA-82 Artillery Droid', quantity:1, category:'War Droid', description:'Artillery droid firing Ion Warheads. Large AOE, extremely effective against droids and light armor.', deployed:0, undeployed:1, location:'', misc:'' },
+      { id:newId(), name:'DP-6 Guard Droid Security Unit', quantity:1, category:'Squad', description:'8x 3k Security Droids.', deployed:1, undeployed:0, location:'Factory', misc:'' },
+      { id:newId(), name:'Speeder Technical', quantity:3, category:'Speeder', description:'A speeder with armor plating and a rear heavy blaster.', deployed:3, undeployed:0, location:'Begeran', misc:'' }
+    ],
+    [
+      { id:newId(), name:'Engineering Slave', quantity:3, category:'Slave', description:'Slaves skilled at engineering.', location:'', misc:'' },
+      { id:newId(), name:'Labor Slave', quantity:86, category:'Slave', description:'Slave laborers.', location:'', misc:'' },
+      { id:newId(), name:'Pilot Slave', quantity:3, category:'Slave', description:'Slave pilots.', location:'', misc:'' },
+      { id:newId(), name:'Scientist Slave', quantity:1, category:'Slave', description:'A scientist taken as a slave.', location:'', misc:'' },
+      { id:newId(), name:'7-B Sensor Array', quantity:2, category:'Util', description:'A passable sensor array, carriable on a truck.', location:'', misc:'' },
+      { id:newId(), name:'180mm Mortar', quantity:1, category:'Equipment', description:'A standard medium mortar for shelling positions.', location:'Begeren', misc:'' },
+      { id:newId(), name:'Civilian Medical Crates', quantity:4, category:'Crate', description:'Should heal 70 people with common wounds, 5 with greater ones.', location:'Begeren', misc:'' }
+    ],
+    [
+      { id:newId(), name:'Base Wage', quantity:1, income:5000, upkeep:0, net:5000, totalNet:5000 },
+      { id:newId(), name:'Mark I Sentinal War Droid', quantity:80, income:0, upkeep:0, net:0, totalNet:0 },
+      { id:newId(), name:'Imperial Trooper', quantity:10, income:0, upkeep:1000, net:-1000, totalNet:-10000 },
+      { id:newId(), name:'Rim Shitter', quantity:6, income:0, upkeep:100, net:-100, totalNet:-600 },
+      { id:newId(), name:'Rim Slicer', quantity:2, income:0, upkeep:200, net:-200, totalNet:-400 },
+      { id:newId(), name:'Jack Kade', quantity:1, income:0, upkeep:300, net:-300, totalNet:-300 },
+      { id:newId(), name:'Marble Quarry', quantity:1, income:57500, upkeep:0, net:57500, totalNet:57500 },
+      { id:newId(), name:'Mid Rim Engineer', quantity:1, income:0, upkeep:1000, net:-1000, totalNet:-1000 },
+      { id:newId(), name:'Beregan Militia', quantity:100, income:0, upkeep:250, net:-250, totalNet:-25000 },
+      { id:newId(), name:'Freighter Pilot', quantity:1, income:0, upkeep:250, net:-250, totalNet:-250 },
+      { id:newId(), name:'Starfighter Pilot', quantity:5, income:0, upkeep:1500, net:-1500, totalNet:-7500 },
+      { id:newId(), name:'Food Shipments', quantity:1, income:0, upkeep:500, net:-500, totalNet:-500 },
+      { id:newId(), name:'Apprentice Stipend', quantity:2, income:0, upkeep:2500, net:-2500, totalNet:-5000 },
+      { id:newId(), name:'Mercenaries', quantity:150, income:0, upkeep:300, net:-300, totalNet:-45000 },
+      { id:newId(), name:'Taxes', quantity:1, income:107400, upkeep:0, net:107400, totalNet:107400 },
+      { id:newId(), name:'PDF Personnel', quantity:100, income:0, upkeep:300, net:-300, totalNet:-30000 }
+    ],
+    [
+      { id:newId(), name:'Mark I Sentinal War Droid',       quantity:80, cycle:'Monthly', origin:'BF L2', estimatedValue:1300,  totalValue:104000 },
+      { id:newId(), name:'Arachnid Droid Mk1: Black Widow', quantity:3,  cycle:'Monthly', origin:'BF L1', estimatedValue:35000, totalValue:105000 },
+      { id:newId(), name:'Arachnid Droid Mk1: Black Widow', quantity:3,  cycle:'Monthly', origin:'BF L4', estimatedValue:35000, totalValue:105000 },
+      { id:newId(), name:'Arachnid Droid Mk1: Black Widow', quantity:3,  cycle:'Monthly', origin:'BF L4', estimatedValue:35000, totalValue:105000 }
+    ],
+    [
+      { id:newId(), name:'Beregan (Voln)', adultPop:1350, loyalty:'High', gdpPerCapita:400, totalGdp:540000, taxes:0, additionalInfo:'Has a Quarry providing 50,000 worth of luxury marble per report cycle.' },
+      { id:newId(), name:'Fela', adultPop:8400, loyalty:'Low', gdpPerCapita:250, totalGdp:2100000, taxes:21000, additionalInfo:'Farming Town, Taxed at 12%' },
+      { id:newId(), name:'Moria', adultPop:27000, loyalty:'Medium', gdpPerCapita:320, totalGdp:8640000, taxes:86400, additionalInfo:'Urban Settlement, Taxed at 12%' }
+    ],
+    [
+      { id:newId(), name:"Lord Veylan's Lightsaber and Shoto", number:1, aura:'High', description:'The Lightsaber and Shoto of Lord Veylan, claimed from his corpse after the Okara Factory Battle.', conflict:'The Okara Factory Raid', claimedFrom:'Lord Veylan' },
+      { id:newId(), name:"Lord Tytonus Lightsaber", number:1, aura:'Medium', description:'The Saber of Lord Tytonus claimed after assassination.', conflict:'The Battle for Kaas', claimedFrom:'Lord Tytonus' },
+      { id:newId(), name:"Lord Damriks Lightsaber", number:1, aura:'Tiny', description:"The Lightsaber of Lord Damrik claimed after his attempt to flee.", conflict:'The 1st IDC Balmorra Investigation', claimedFrom:'Lord Damrik' }
+    ],
+    [
+      { id:newId(), name:'Haks', form:'Form VI: Niman / Form III Soresu', fightingStyle:'Telekinesis and environmental warfare. Uses a saberstaff. Force pull and stab tactics.', description:'Cunning. Decent potential. Graduated through force and dealmaking. Has a shield.', specialization:'N/A', location:'Balmorra', rank:'Low Apprentice' },
+      { id:newId(), name:'Randallio', form:'Form 2: Makashi', fightingStyle:'Classic duelist with penchant for disarms and wrist targeting strikes.', description:'Surprisingly effective Makashi duelist. Has a shield.', specialization:'Duelist', location:'Begeran', rank:'Low Apprentice' }
+    ],
+    [
+      { id:newId(), name:'Sith Warblade', number:15, quality:'Minor', value:'?', description:'Basic Sith Warblade without extraneous mystical effects.', effects:'Stops Lightsabers' },
+      { id:newId(), name:'Sith Shield', number:4, quality:'Minor', value:'?', description:'Similar to a Warblade, but a kite shield.', effects:'Stops Lightsabers' },
+      { id:newId(), name:'Sith Armor', number:3, quality:'Minor', value:'?', description:'Armor of an ancient style and make.', effects:'Stops Lightsabers' },
+      { id:newId(), name:'Circlet of Lost Memories', number:1, quality:'Major', value:'?', description:'A circlet from Balmorra. Allows the user to launch an enhanced repulse, flinging and harming those caught in the blast.', effects:'Super Powered Repulse' },
+      { id:newId(), name:"Sangui'kaar", number:1, quality:'Major', value:'?', description:'A rare warblade, light as a feather. Gives off purple sparks. Upon stabbing, gets wreathed in cyan flame.', effects:'Supernatural lightness, cuts through flesh, starts exuding flame on strike' },
+      { id:newId(), name:'Darkshard Amulet', number:1, quality:'Normal', value:'?', description:'An amulet that forms force power into shards of dark side energy flung 20 yards.', effects:'Fires a shard of darkness, consumes flesh like acid' }
+    ]
+  );
+  players['kinkaid'].droids = [
+    { id:newId(), name:'Sentinel Mk1',               unique:false, materialCost:400,   marketCost:1300,  role:'Chaff',            size:'Human sized',           weaponry:'1x Rifle',                        description:'A rudimentary combat droid with poor AI but the accuracy of a droid. Capable of guard duty or filling out numbers when commanded by someone more tactically minded.',                                                                                                                                                                        source:'Ruin' },
+    { id:newId(), name:'Arachnid Droid Mk:1 — Black Widow', unique:true, materialCost:10000, marketCost:35000, role:'Anti Insurgency', size:'8 ft long, 5 ft tall', weaponry:'2x Suppressive Anti-Infantry Blasters', description:"Designed for anti-insurgency warfare. Armed with two accurate high-fire-rate blasters that shred unarmored targets. Ability to climb all terrain including sheer cliffs makes it a spectacular ambush and counter-insurgency droid. Unique to Torvax.", source:'Custom' },
+    { id:newId(), name:'OT-9 Artillery Droid',       unique:false, materialCost:15000, marketCost:50000, role:'Artillery',         size:'6 ft long, 9 ft tall',  weaponry:'2x Heavy Indirect Shells',        description:'A large artillery droid.',                                                                                                                                                                                                               source:'BLF' }
+  ];
+  players['kinkaid'].unitRosters = {
+    'Obedience Unit': {
+      description:'A veteran squad of Imperial Troopers with a trend towards sadism. Multiple flamethrowers and personal shields. Specializes in urban anti-infantry.',
+      sections: [
+        { section:'Officers (1)',           members:[{ name:'Sergeant: Korven Task', weaponry:'Flamethrower', qty:1, equipment:'2x Thermal Detonators, 1x Designator' }] },
+        { section:'Fire Team (1)',          members:[{ name:'Imperial Trooper',      weaponry:'Rifle',        qty:3, equipment:'' }] },
+        { section:'Heavy Weapons Team (1)', members:[{ name:'Imperial Trooper',      weaponry:'Rifle',        qty:1, equipment:'' }, { name:'Imperial Heavy Trooper', weaponry:'Heavy Rifle', qty:1, equipment:'1x Thermal Detonator' }, { name:'Imperial AT', weaponry:'Rifle, Missile Launcher', qty:1, equipment:'' }] },
+        { section:'Support Team (1)',       members:[{ name:'Imperial Trooper',      weaponry:'Rifle',        qty:2, equipment:'' }, { name:'Flamethrower Trooper', weaponry:'Flamethrower', qty:1, equipment:'' }] }
+      ]
+    },
+    'Salvager Team': {
+      description:'A collection of 3 salvagers and one slicer led by Jack Kade with his warsword.',
+      sections: [
+        { section:'Team', members:[
+          { name:'Jack Kade',        weaponry:'Rifle',   qty:1, equipment:'2x Thermal Detonators, 1x Sith Warblade' },
+          { name:'Salvager Grunt',   weaponry:'Rifle',   qty:3, equipment:'' },
+          { name:'Slicer Specialist',weaponry:'Pistol',  qty:1, equipment:'Slicing Kit' }
+        ]}
+      ]
+    }
+  };
+  players['kinkaid'].factionData = {
+    imperialDoctinalControl: {
+      commander: 'Lord Torvax',
+      vessel: 'Rage Class Transport (Pilot assigned)',
+      teams: {
+        oversightTeam: { squads:['1st Squad','2nd Squad','3rd Squad','4th Squad'] },
+        investigativeTeam: { units:['1st Intel Ops'] }
+      }
+    }
+  };
+
+  // ----- REMAINING PLAYERS -----
+
+  // CONSTANTINE
+  players['constantine'] = mkPlayer('constantine','Constantine',
+    { name:'Lord Janik', rank:'Lord', age:24, species:'Human', ideology:'Ultra Traditionalist', archetype:'Enchanted Warrior', lightsaberForm:'Form V (Djem So)',
+      fightingStyle:'Aggressive attacks and counterattacks, favoring constant pressure and rapid movements or adjustments. Switches to defense, favoring good withdrawal tactics and deflections to conserve energy.',
+      equipment:['Skin Tight Suit and Armored Robes'],
+      personality:'Masochist, Irritable, Arrogant, Zealous',
+      background:'Elaindi Systra was an ordinary human born to natives of Metellos. Thalassian slavers raided her transport and took her captive. Sold and forced to witness her family murdered, she grew a deep hatred against alien species. Sensed by both sides of the Force when war came, she chose the Sith and refined her skills through alchemical self-enhancement, eventually cemented as Lord Janik.',
+      notes:'', specificSkills:['Alchemical Enchantment'] },
+    { balance:1018500, startingBalance:1018500 },
+    [
+      { id:newId(), name:'The Citadel', quantity:1, category:'Stronghold', description:'A multistoried chain of buildings in the red light district. Can store around 8k people but is designed for much less. Requires 50-60 to guard, 160-200 to patrol all the perimeter. Has a high tier communications console.', location:'Northern Red Light District', attachedForces:'', misc:'Has four E-Webs fortified at the entrances, all misc entrances walled in.' },
+      { id:newId(), name:'Jabiim Mobile Mine', quantity:2, category:'Raw Resource', description:"A large mobile mine that trawls over the world's surface, harvesting the many minerals which are on world.", location:'Jabiim', attachedForces:'', misc:'' },
+      { id:newId(), name:'Handooine Refinery', quantity:2, category:'Refining', description:'A refinery on Handooine.', location:'Handooine', attachedForces:'', misc:'' }
+    ],
+    [
+      { id:newId(), name:'Unbound Cultist Squad', quantity:16, category:'Melee Infantry', description:'Cultists fanatically loyal to Lord Janik, passable swordsmen that care little for pain or faltering.', deployed:0, undeployed:16, location:'Nar Shaddaa', misc:'' },
+      { id:newId(), name:'Unbound Cultist Squad (Blasters)', quantity:12, category:'Infantry', description:"Cultists fanatically loyal to Lord Janik, decent shots and they don't flinch or falter. They have modern republic blasters.", deployed:0, undeployed:12, location:'Nar Shaddaa', misc:'' },
+      { id:newId(), name:'Imperial Marksmen Fireteam', quantity:1, category:'Marksmen', description:'Imperial Marksmen hired on for elite operations.', deployed:0, undeployed:1, location:'Nar Shaddaa', misc:'' },
+      { id:newId(), name:'Corporate Squad', quantity:40, category:'Infantry', description:'Men hired to protect corporate interests and the mines established by Lord Janik.', deployed:0, undeployed:40, location:'Jabiim and Handooine', misc:'' },
+      { id:newId(), name:'Imperial Trooper Squad', quantity:3, category:'Squad', description:'A squad of Imperial Troopers, the classic.', deployed:0, undeployed:3, location:'Nar Shaddaa', misc:'' },
+      { id:newId(), name:'Iron Manacled Warband', quantity:4, category:'Warband', description:'A Warband of 50 Talz led by Saumen Kar, Talz warlord sworn to Lord Janik. Armed with rudimentary bone weapons and blaster resistant plate armor.', deployed:0, undeployed:4, location:'', misc:'' }
+    ],
+    [
+      { id:newId(), name:'Rifles', quantity:1, category:'Crate', description:'Modern republic tier rifles.', deployed:0, undeployed:1, location:'The Citadel', misc:'' },
+      { id:newId(), name:'Explosives', quantity:1, category:'Crate', description:'Republic level explosives and missile launchers.', deployed:0, undeployed:1, location:'The Citadel', misc:'' },
+      { id:newId(), name:'Medical Supplies', quantity:1, category:'Crate', description:'Republic tier stims and bacta patches.', deployed:0, undeployed:1, location:'The Citadel', misc:'' },
+      { id:newId(), name:'YG-1400', quantity:1, category:'Shuttle', description:'A Shielded Shuttle.', deployed:0, undeployed:1, location:'The Citadel', misc:'' },
+      { id:newId(), name:'E-Web', quantity:4, category:'Weapon', description:'A Heavy Towed Blaster.', deployed:4, undeployed:0, location:'The Citadel', misc:'' },
+      { id:newId(), name:'Tiny Freighter', quantity:4, category:'Freighter', description:'A civilian freighter for traditional transport.', deployed:4, undeployed:0, location:'Mine Refinery Line', misc:'' },
+      { id:newId(), name:'Transport', quantity:1, category:'Shuttle', description:'A shuttle scale vessel with a hyperdrive for personal transport across systems.', deployed:0, undeployed:1, location:'', misc:'' },
+      { id:newId(), name:'Medium Freighter', quantity:1, category:'Freighter', description:'A larger freighter that can comfortably transport approx 100, or uncomfortably 300.', deployed:0, undeployed:1, location:'', misc:'' },
+      { id:newId(), name:'Colicoid War Droids', quantity:6, category:'War Droid', description:'Colicoid War Droids, the classic Sith weapons of war.', deployed:0, undeployed:6, location:'', misc:'' }
+    ],
+    [
+      { id:newId(), name:'T-7 Astromech', quantity:1, category:'Droid', description:'A non-combat astromech.', location:'', misc:'' },
+      { id:newId(), name:'Labor Slave', quantity:406, category:'Slave', description:'Slave laborers.', location:'', misc:'' },
+      { id:newId(), name:'Imperial Troopers', quantity:2, category:'Infantry', description:'Imperial Troopers, members of the retinue.', location:'', misc:'' },
+      { id:newId(), name:'Imperial Pilots', quantity:2, category:'Util', description:'Imperial Pilots, members of the retinue.', location:'', misc:'' },
+      { id:newId(), name:'Trainers', quantity:4, category:'Util', description:'Men with a value of 500 for training individuals.', location:'', misc:'' },
+      { id:newId(), name:'Mid Rim Doctor', quantity:2, category:'Util', description:'An Average Doctor.', location:'', misc:'' },
+      { id:newId(), name:'Cook', quantity:2, category:'Util', description:'A Line Cook.', location:'', misc:'' },
+      { id:newId(), name:'Imperial Trainers', quantity:2, category:'Infantry', description:'Trainers which are of Imperial Quality and Profession.', location:'', misc:'' },
+      { id:newId(), name:'Unbound Notables', quantity:2, category:'Infantry', description:'The notable commanding officers that Lord Janik has been experimenting on.', location:'', misc:'' },
+      { id:newId(), name:'Freighter Pilot', quantity:4, category:'Util', description:'A pilot for a freighter.', location:'', misc:'' },
+      { id:newId(), name:'Civilian Medical Crates', quantity:1, category:'Crate', description:'A crate that should heal 70 people with common wounds, 5 with greater ones.', location:'', misc:'' }
+    ],
+    [
+      { id:newId(), name:'Wage', quantity:1, income:5000, upkeep:0, net:5000, totalNet:5000 },
+      { id:newId(), name:'Imperial Troopers', quantity:35, income:0, upkeep:1000, net:-1000, totalNet:-35000 },
+      { id:newId(), name:'Midrim Personnel', quantity:2, income:0, upkeep:300, net:-300, totalNet:-600 },
+      { id:newId(), name:'Imperial Pilots', quantity:2, income:0, upkeep:1500, net:-1500, totalNet:-3000 },
+      { id:newId(), name:'Cultists', quantity:280, income:0, upkeep:60, net:-60, totalNet:-16800 },
+      { id:newId(), name:'Gauntlet Pay', quantity:1, income:85000, upkeep:0, net:85000, totalNet:85000 },
+      { id:newId(), name:'Mid Rim Doctor', quantity:2, income:0, upkeep:500, net:-500, totalNet:-1000 },
+      { id:newId(), name:'Cooks', quantity:2, income:0, upkeep:100, net:-100, totalNet:-200 },
+      { id:newId(), name:'Imperial Trainers for Gauntlet', quantity:2, income:0, upkeep:4000, net:-4000, totalNet:-8000 },
+      { id:newId(), name:'Bleeder Pay', quantity:1, income:75000, upkeep:0, net:75000, totalNet:75000 },
+      { id:newId(), name:'Imperial Marksmen', quantity:3, income:2000, upkeep:0, net:2000, totalNet:6000 },
+      { id:newId(), name:'Corporate Security', quantity:100, income:400, upkeep:0, net:400, totalNet:40000 },
+      { id:newId(), name:'Freighter Pilot', quantity:4, income:0, upkeep:250, net:-250, totalNet:-1000 },
+      { id:newId(), name:'Stone Refinement', quantity:2, income:65000, upkeep:250, net:64750, totalNet:129500 },
+      { id:newId(), name:'Lord Krol Pay', quantity:1, income:0, upkeep:10000, net:-10000, totalNet:-10000 }
+    ],
+    [],
+    [{ id:newId(), name:'Unbound Followers', adultPop:1500, loyalty:'Fanatic (Low)', gdpPerCapita:40, totalGdp:60000, taxes:0, additionalInfo:'' }],
+    [
+      { id:newId(), name:"Raylon Nys' Lightsaber", number:1, aura:'Medium', description:'', conflict:'', claimedFrom:'' },
+      { id:newId(), name:"Raylon Nys' Skull", number:1, aura:'High', description:'', conflict:'', claimedFrom:'' },
+      { id:newId(), name:'Unknown Trophy', number:1, aura:'Tiny', description:'', conflict:'', claimedFrom:'' }
+    ],
+    [
+      { id:newId(), name:'Lord Krol', form:'VII Juyo', fightingStyle:"Has a penchant for falling into a bladed stance and conducting powerful strikes. Immensely skilled at handling bladed weapons and large numbers of weaker melee combatants. Force usage is primarily enhancement based.", description:"A Sith lord drawn from Ikoral's forces, sworn to servitude.", specialization:'N/A', location:'', rank:'Low Lord' }
+    ],
+    [
+      { id:newId(), name:'Sith Warblade', number:7, quality:'Minor', value:'?', description:'Basic Sith Warblade without extraneous mystical effects.', effects:'Stops Lightsabers' },
+      { id:newId(), name:'Sith Armor', number:3, quality:'Minor', value:'?', description:'Armor of an ancient style and make.', effects:'Stops Lightsabers' },
+      { id:newId(), name:'Sith Greatsword', number:1, quality:'Normal', value:'?', description:'A greatsword with unknown mystical effects.', effects:'Stops Lightsabers' },
+      { id:newId(), name:'Sith Dagger', number:1, quality:'Minor', value:'?', description:'Basic Sith Sacrificial Dagger without extraneous mystical effects.', effects:'Stops Lightsabers' },
+      { id:newId(), name:'Wayfinder', number:1, quality:'Major', value:'?', description:"A gem that periodically exudes waves of power, bounces off other individuals' force power and allows the user to detect by melding their power whilst touching.", effects:'' },
+      { id:newId(), name:'Leatherback Helm', number:1, quality:'Normal', value:'?', description:'A helmet that lends the flesh of the wearer a leather-like quality for the deflection and absorption of small arms and bladed weapons.', effects:'' },
+      { id:newId(), name:'Spell Strike Gauntlet', number:1, quality:'Major', value:'?', description:'A gauntlet with a gem placed within the palm; the wearer can charge the gem with power and release it as a beam of electrical power.', effects:'' }
+    ]
+  );
+
+  // RUPBERT
+  players['rupbert'] = mkPlayer('rupbert','Rupbert',
+    { name:"Logar'un Rosce", rank:'Lord', age:24, species:'Sith Pureblood', ideology:'Traditionalist', archetype:'Snobby Militarist', lightsaberForm:'Soresu (Sith)',
+      fightingStyle:'When combatting soldiers engages defensively, primarily guarding allies. When dueling is momentum based, letting the opponent advance before slowly countering then putting pressure on with a tight guard. Close strikes within the guard with a focus on saber grappling.',
+      equipment:['Crimson lightsaber'],
+      personality:'Socially traditionalist, militarily reformist (exception to aliens in command). Views himself and his kind as superior though does not waste his men recklessly.',
+      background:'Born to house Rosce on Kaas, mingled with the upper class for his childhood before being sent to Korriban. During training his family lost a feud with another powerful Sith. His parents were killed and his eldest sibling died, leaving him and one younger sibling with no power remaining.',
+      notes:'', specificSkills:['Military tactics and past battles', 'Battlefield command'] },
+    { balance:2855800, startingBalance:2855800 },
+    [
+      { id:newId(), name:'Ruined Manor', quantity:1, category:'Stronghold', description:'The Ruined Manor of House Rosce, hideously expensive and ruined by the attack.', location:'Dromund Kaas', attachedForces:'', misc:'Details Unknown' },
+      { id:newId(), name:'Slave Target Facility', quantity:1, category:'Processing Facility', description:'Trains slaves for use as living targets.', location:'Dromund Kaas', attachedForces:'', misc:'Stores 1 Fire Team' },
+      { id:newId(), name:'Slave Wetnurse Facility', quantity:1, category:'Processing Facility', description:'Trains slaves for use as Wetnurses.', location:'Dromund Kaas', attachedForces:'', misc:'Stores 1 Fire Team' },
+      { id:newId(), name:"Working Sith's Apartment", quantity:1, category:'Stronghold', description:"The apartment belonging to House Rosce in Kaas City, floor 8 of a 20 story scraper.", location:'Dromund Kaas', attachedForces:'', misc:'' },
+      { id:newId(), name:'Small Restaurant', quantity:2, category:'Income', description:'A small restaurant owned by House Rosce.', location:'Dromund Kaas', attachedForces:'', misc:'' },
+      { id:newId(), name:'Labor Slave Facility', quantity:1, category:'Income', description:'A facility to train house slaves for labor: gardeners, plumbers, and janitors alike.', location:'Dromund Kaas', attachedForces:'', misc:'Stores 1 Squad' },
+      { id:newId(), name:'Maid Slave Facilities', quantity:1, category:'Income', description:'A facility to train house slaves as Maids.', location:'Dromund Kaas', attachedForces:'', misc:'Stores 2 Squads' },
+      { id:newId(), name:'Butler Slave Facility', quantity:1, category:'Income', description:'A facility to train house slaves as Butlers.', location:'Dromund Kaas', attachedForces:'', misc:'Stores 2 Squads' },
+      { id:newId(), name:'Dolorem Manor', quantity:1, category:'Stronghold', description:'The Dolorem Manor.', location:'Dromund Kaas', attachedForces:'', misc:'' },
+      { id:newId(), name:'Rosce Barracks', quantity:1, category:'Stronghold', description:"A facility with a basement that acts as the Barracks for Lord Rosce. Equipped with an underground layer modeled off Darth Skotia's own and a training facility. Core of House Rosce's manpower.", location:'Dromund Kaas', attachedForces:'', misc:'Stores 24 Squads' },
+      { id:newId(), name:'Mining Slave Facility', quantity:1, category:'Income', description:'An almost completed facility to train high quality slave miners and surveyors to be exported for mining projects.', location:'Dromund Kaas', attachedForces:'', misc:'' }
+    ],
+    [
+      { id:newId(), name:'DP-6 Guard Droid Security Unit', quantity:19, category:'Squad', description:'8x 3k Security Droids.', deployed:5, undeployed:14, location:'Kaas', misc:'N/A' },
+      { id:newId(), name:'Bladeguard', quantity:20, category:'Squad', description:'The Bladeguard, a well trained melee force that operates as the will of the House.', deployed:20, undeployed:0, location:'Kaas', misc:'N/A' },
+      { id:newId(), name:'Imperial Trooper Independent Fire Team', quantity:1, category:'Fire Team', description:'4x Imperial Troopers + Sergeant Kallum Hurmoll.', deployed:1, undeployed:0, location:'Kaas', misc:'N/A' },
+      { id:newId(), name:'Mark I Sentinel Droid', quantity:32, category:'Droid', description:'The Sentinel MK1 Droid. Little more than legs with a weapon, an effective security droid or boon to gain numbers.', deployed:12, undeployed:20, location:'Kaas', misc:'N/A' },
+      { id:newId(), name:'Imperial Trooper Squad', quantity:4, category:'Squad', description:'Classic 10-man Squad of Imperial Troopers.', deployed:1, undeployed:3, location:'Kaas', misc:'N/A' },
+      { id:newId(), name:'C10 War Droid', quantity:1, category:'Droid', description:'A C10 War Droid, a monolithic combatant heavily armed and armored.', deployed:1, undeployed:0, location:'Kaas', misc:'N/A' },
+      { id:newId(), name:'Imperial Trooper Platoon', quantity:2, category:'Platoon', description:'A platoon of Imperial Troopers, armed, armored, and skilled.', deployed:2, undeployed:0, location:'Kaas', misc:'N/A' }
+    ],
+    [
+      { id:newId(), name:'Civilian Shuttle', quantity:5, category:'Shuttle', description:'A civilian shuttle, average in all ways.', deployed:4, undeployed:1, location:'Kaas', misc:'' },
+      { id:newId(), name:'High Class Speeder', quantity:1, category:'Speeder', description:'A reinforced armored luxury speeder for the wealthy.', deployed:1, undeployed:0, location:'Ziost', misc:'' },
+      { id:newId(), name:'Tiny Freighter', quantity:4, category:'Freighter', description:'A civilian freighter for traditional transport.', deployed:0, undeployed:4, location:'Kaas', misc:'' }
+    ],
+    [
+      { id:newId(), name:'Jim', quantity:1, category:'Individual', description:'A low IQ laborer taken from Balmorra.', location:'N/A', misc:'' },
+      { id:newId(), name:'Chef', quantity:4, category:'Individual', description:'A 500 credit wage chef who lives off site.', location:'N/A', misc:'' },
+      { id:newId(), name:'Sergeant Arik', quantity:1, category:'Individual', description:'A sergeant who was tortured into a sad placid experience, just going through the motions.', location:'N/A', misc:'' },
+      { id:newId(), name:"Tu'kata", quantity:4, category:'War Beast', description:"Moderately aged Tu'kata purchased from a house on Ziost for guarding the apartment.", location:'Apartment', misc:'' },
+      { id:newId(), name:'Colicoid Sith War Droid', quantity:14, category:'War Droid', description:'The classic Sith War Droids, slow but all terrain and well armored.', location:'N/A', misc:'' },
+      { id:newId(), name:'I5-T1 Fortress War Droid', quantity:1, category:'War Droid', description:'A force multiplier; capable of entrenching and firing at will with heavy cannons and blasters.', location:'N/A', misc:'' },
+      { id:newId(), name:'Lieutenant Trass', quantity:1, category:'Individual', description:'A lieutenant drawn from Balmorra, well attached and loyal to the house of Rosce. A skilled if caustic commander, now laden in full Beskar.', location:'Retinue', misc:'' }
+    ],
+    [
+      { id:newId(), name:'Base Wage', quantity:1, income:5000, upkeep:0, net:5000, totalNet:5000 },
+      { id:newId(), name:'Imperial Trooper', quantity:166, income:0, upkeep:1000, net:-1000, totalNet:-166000 },
+      { id:newId(), name:'Chef', quantity:4, income:0, upkeep:500, net:-500, totalNet:-2000 },
+      { id:newId(), name:'Small Kaas Restaurant', quantity:2, income:25000, upkeep:5000, net:20000, totalNet:40000 },
+      { id:newId(), name:'Labor Slave Facility', quantity:1, income:160000, upkeep:15000, net:145000, totalNet:145000 },
+      { id:newId(), name:'Maid Slave Facility', quantity:1, income:130000, upkeep:20000, net:110000, totalNet:110000 },
+      { id:newId(), name:'Butler Slave Facility', quantity:1, income:100000, upkeep:25000, net:75000, totalNet:75000 },
+      { id:newId(), name:'Jim', quantity:1, income:0, upkeep:400, net:-400, totalNet:-400 },
+      { id:newId(), name:'Bladeguard', quantity:200, income:0, upkeep:200, net:-200, totalNet:-40000 }
+    ],
+    [], [],
+    [
+      { id:newId(), name:"Lord Naga's Lightsaber", number:1, aura:'Medium', description:'The Lightsaber of Lord Naga of House Nerath.', conflict:"Tytonus' Invasion and Assassination", claimedFrom:'Lord Naga' },
+      { id:newId(), name:"Lord Alerat's Lightsaber", number:1, aura:'Low', description:'The Lightsaber of Lord Alerat of House Nerath.', conflict:'The Retaking of the Labor Facility', claimedFrom:'Lord Alerat' },
+      { id:newId(), name:"Gil's Sword", number:2, aura:'Medium', description:'The Electro Swords wielded by Mandalorian Gil.', conflict:'The Battle of the Southern Fortress', claimedFrom:'Gil' }
+    ],
+    [
+      { id:newId(), name:'Lorika Rosce', form:'Form I Shi-Cho Mixed With Soresu', fightingStyle:'Lorika utilizes a mix of Form I and III loosely modeled off of her master. A penchant for closing the distance and then fighting defensively whilst conducting simple pressure to bait an overextension. Adaptable but with minimal experience.', description:'A lady of house Rosce, an effective combatant for her experience, learned directly from the Lord himself.', specialization:'Warrior', location:'', rank:'Mid-Apprentice' }
+    ],
+    []
+  );
+
+  // DUCKY
+  players['ducky'] = mkPlayer('ducky','Ducky',
+    { name:'Verrok', rank:'Lord', age:25, species:'Sith Pureblood', ideology:'Ultra-Traditionalist', archetype:'Vanguard/Warrior', lightsaberForm:'Ataru',
+      fightingStyle:'Highly aggressive/stamina-reliant bladework, force-enhanced domination of terrain, breakthrough defenses via overwhelming attack.',
+      equipment:['Cheap Personal Shield (blocks a shot, 60s recharge)'],
+      personality:'Stubborn, Arrogant, Reliable, Headstrong, Petite Racism',
+      background:"Verrok is a Sith Pureblood not from a family of serious renown, and not in line to inherit wealth or power by birthright. His heritage ensured he was treated properly and trained in the Dark Arts as befitting his station. On Korriban he engaged in bloodletting against lesser initiates and delved into dangerous tombs alone to make a name for himself.",
+      notes:'', specificSkills:[] },
+    { balance:537000, startingBalance:537000 },
+    [],
+    [
+      { id:newId(), name:'Grenadier', quantity:16, category:'Squad', description:'Newly formed unit, over half extremely loyal. Armed with imperial equipment, veteran warriors skilled and equipped for storming enemy defensive positions.', deployed:0, undeployed:16, location:'', misc:'' }
+    ],
+    [
+      { id:newId(), name:'Augmented Mosgoth', quantity:1, category:'Beast', description:'A Mosgoth enhanced by biotic science: blaster proof scales, ability to channel an imitation of force lightning through its mouth, two additional eyes, and enhanced intellect.', deployed:0, undeployed:1, location:'', misc:'' },
+      { id:newId(), name:'Vorul Freighter', quantity:1, category:'Freighter', description:'A premium civilian freighter for long distance transport. Armed with 2x Double Laser Cannons and 1x PDC Cannon. Large central storage bay configurable for speeders, crew of 20.', deployed:0, undeployed:1, location:'', misc:'' },
+      { id:newId(), name:'Tiny Freighter', quantity:3, category:'Freighter', description:'A civilian freighter for traditional transport.', deployed:0, undeployed:3, location:'', misc:'' },
+      { id:newId(), name:'Gelkar and His Family', quantity:1, category:'Misc', description:'Gelkar and his family — the former being a skilled and effective R&D personnel.', deployed:0, undeployed:1, location:'', misc:'' },
+      { id:newId(), name:'E-Web', quantity:4, category:'Weapon', description:'A Heavy Towed Blaster.', deployed:0, undeployed:4, location:'', misc:'' },
+      { id:newId(), name:'Manpad', quantity:9, category:'Weapon', description:'Man-portable air defense systems.', deployed:0, undeployed:9, location:'', misc:'' },
+      { id:newId(), name:'Speeder Truck', quantity:6, category:'Vehicle', description:'Speeder trucks for transport and logistics.', deployed:0, undeployed:6, location:'', misc:'' },
+      { id:newId(), name:'Speeder Van', quantity:10, category:'Vehicle', description:'Speeder vans.', deployed:0, undeployed:10, location:'', misc:'' }
+    ],
+    [
+      { id:newId(), name:'Sergeant Wilkens', quantity:1, category:'Notable', description:"A veteran from Togoria, originally a career loyalist to the Sith. Verrok's right hand man, loyal and happy to serve.", location:'Retinue', misc:'' },
+      { id:newId(), name:'Gorn', quantity:1, category:'Officer', description:'Commander of the Goons. An old miner, willing and happy to follow, somewhat nervous but feels much for the Sith who has provided him this opportunity.', location:'Retinue', misc:'' },
+      { id:newId(), name:'Labor Slaves', quantity:9, category:'Slaves', description:'A group of 60 labor slaves, little raw value beyond their bodies and lives.', location:'Retinue', misc:'' },
+      { id:newId(), name:'House Guard', quantity:8, category:'Acolyte', description:'The House Guard, drawn from the knightly houses that serve House Korrath. Proven combatants skilled with the blade.', location:'Retinue', misc:'' }
+    ],
+    [
+      { id:newId(), name:'Sergeant Wilkins', quantity:1, income:0, upkeep:1000, net:-1000, totalNet:-1000 },
+      { id:newId(), name:'Grenadiers', quantity:160, income:0, upkeep:100, net:-100, totalNet:-16000 },
+      { id:newId(), name:'Tax', quantity:0.25, income:263638, upkeep:0, net:263638, totalNet:65909.5 },
+      { id:newId(), name:'House Stipend', quantity:1, income:10000, upkeep:0, net:10000, totalNet:10000 }
+    ],
+    [], [],
+    [
+      { id:newId(), name:"Atrin's Lightsaber", number:1, aura:'Medium', description:'The lightsaber of Atrin, taken from her cooling corpse.', conflict:'Entralla Insurgency', claimedFrom:'Lord Atrin' },
+      { id:newId(), name:"Atrin's Helmet", number:1, aura:'High', description:'The helm that Atrin took upon being headbutted on Balmorra.', conflict:'Entralla Insurgency', claimedFrom:'Lord Atrin' },
+      { id:newId(), name:"Rorach's Lightsabers", number:2, aura:'Low', description:'The lightsabers of Rorach taken from his skewered corpse.', conflict:'Battle of Rorachistan', claimedFrom:'Lord Rorach' }
+    ],
+    [],
+    [
+      { id:newId(), name:'Unknown Chestplate', number:1, quality:'Normal', value:'?', description:'A black metal chestplate with gems inlaid.', effects:'Blocks lightsaber strikes and lightning.' }
+    ]
+  );
+
+  // SATURN
+  players['saturn'] = mkPlayer('saturn','Saturn',
+    { name:'Lord Praevorn', rank:'Lower Lord', age:24, species:'Human', ideology:'Ultra Reformist', archetype:'Warrior', lightsaberForm:'Form III, Soresu',
+      fightingStyle:'Extremely defensive, focused on delaying actions against other force users and tiring them out. Extensively trained at classic Soresu techniques: parrying, deflecting, and dodging. Very good at blocking blaster fire.',
+      equipment:['1 Standard red lightsaber', 'Blaster Rifle', 'Blaster Pistol', 'Fancy clothing'],
+      personality:'Personable and charismatic with an outwardly cheery demeanor. Goes against the norm of ruling through fear. Above all else a practical man — ends justify the means.',
+      background:"Lord Praevorn was born as Kolari Basotra, third son to a wealthy career military naval family off Ziost. Attended the Ziost Military Academy, excelled greatly, and developed close friends until his force sensitivity was discovered. Was trained by a minor lord in Soresu and leadership. After his lord fell in the defense of Agamar, Kolari rallied remnants and earned a Lordship.",
+      notes:'', specificSkills:['Blaster weapon training', 'Expertise with heavy weapons (missile weapon)'] },
+    { balance:40000, startingBalance:40000 },
+    [], [], [], [],
+    [{ id:newId(), name:'War Wage', quantity:1, income:40000, upkeep:0, net:40000, totalNet:40000 }],
+    [], [], [], [], []
+  );
+
+  // DRENEGAN
+  players['drenegan'] = mkPlayer('drenegan','Drenegan',
+    { name:'Lord Xyphoron', rank:'Lower Lord', age:22, species:'Human', ideology:'Moderate', archetype:'Assassin', lightsaberForm:'Ataru',
+      fightingStyle:'Prefers striking from unexpected angles with Force-augmented speed, then disengaging using stealth to reposition. Hit and run tactics, setting up devastating strikes when opponents are most vulnerable. Lacks endurance for prolonged exchanges.',
+      equipment:[],
+      personality:'Quiet, unassuming efficiency. Cold and transactional. Patient and calculating ambition — not for a throne, but for agency. Deep-seated paranoia.',
+      background:"Survival was Xyphoron's first lesson learned on Nar Shaddaa. Born in the masses, he clawed from street urchin to information broker. His success threatened older enforcers who planted evidence against him in a Hutt cartel. Forced to flee, he sought asylum in the Sith Empire where his Force sensitivity was detected. He survived Korriban by making himself useful in the shadows.",
+      notes:'', specificSkills:['Force Cloak/Camouflage'] },
+    { balance:222250, startingBalance:222250 },
+    [], [],
+    [
+      { id:newId(), name:'Lodestar', quantity:1, category:'Personal Transport', description:'A modified mass freighter with modular design. Modified by Lord Xyphoron with two turrets, concussion missile launchers, a proton launcher, better engine, hyperdrive, and an EMC suite.', deployed:0, undeployed:1, location:'', misc:'' }
+    ],
+    [
+      { id:newId(), name:'Pilot', quantity:1, category:'Util', description:'An Imperial pilot, trained in dogfighting and transportation.', location:'', misc:'' },
+      { id:newId(), name:'Imperial Crewmen', quantity:3, category:'Util', description:'Classic Imperial Crewmen.', location:'', misc:'' },
+      { id:newId(), name:'Engineer', quantity:1, category:'Util', description:'A ship engineer.', location:'', misc:'' },
+      { id:newId(), name:'Tactical Officer', quantity:1, category:'Util', description:'A skilled Imperial officer for a specialty role.', location:'', misc:'' },
+      { id:newId(), name:'DX9 Assassin Droid', quantity:1, category:'Droid', description:'Armed with a Sith Warsword.', location:'', misc:'' },
+      { id:newId(), name:'QO-77 Droid', quantity:2, category:'Droid', description:'Armed with a Sith Warsword.', location:'', misc:'' }
+    ],
+    [
+      { id:newId(), name:'War Wage', quantity:1, income:5000, upkeep:0, net:5000, totalNet:5000 },
+      { id:newId(), name:'Crew', quantity:3, income:0, upkeep:500, net:-500, totalNet:-1500 },
+      { id:newId(), name:'Pilot', quantity:1, income:0, upkeep:1500, net:-1500, totalNet:-1500 },
+      { id:newId(), name:'Engineer', quantity:1, income:0, upkeep:1000, net:-1000, totalNet:-1000 },
+      { id:newId(), name:'Tactical Officer', quantity:1, income:0, upkeep:3000, net:-3000, totalNet:-3000 }
+    ],
+    [], [], [],
+    [],
+    [
+      { id:newId(), name:'Sith Warblade', number:3, quality:'Minor', value:'?', description:'Basic Sith Warblade without extraneous mystical effects.', effects:'Stops Lightsabers' },
+      { id:newId(), name:'Sith Shield', number:2, quality:'Minor', value:'?', description:'Similar to a Warblade, but a kite shield.', effects:'Stops Lightsabers' },
+      { id:newId(), name:'Sith Armor', number:2, quality:'Minor', value:'?', description:'Armor of an ancient style and make.', effects:'Stops Lightsabers' },
+      { id:newId(), name:'Catalogue of Sithari', number:1, quality:'Minor', value:'?', description:'A book that includes instructions to the language of Sith Purebloods.', effects:'N/A' },
+      { id:newId(), name:'Unknown Amulet', number:1, quality:'?', value:'?', description:'Unknown amulet.', effects:'?' }
+    ]
+  );
+
+  // DUSTY
+  players['dusty'] = mkPlayer('dusty','Dusty',
+    { name:'Lord Syndroth', rank:'Lower Lord', age:29, species:'Human', ideology:'Moderate', archetype:'Sorceror', lightsaberForm:'Niman',
+      fightingStyle:'', equipment:[], personality:'', background:'', notes:'', specificSkills:[] },
+    { balance:388400, startingBalance:388400 },
+    [],
+    [
+      { id:newId(), name:'Imperial Trooper Fireteam', quantity:2, category:'Fire Team', description:'A fire team of three loyal Imperial Troopers. They use Mandalorian weapons looted by their master.', deployed:0, undeployed:2, location:'', misc:'' },
+      { id:newId(), name:'Imperial Heavy Fireteam', quantity:1, category:'Fire Team', description:'A fire team of three loyal Imperial Troopers with heavy weapons. They use Mandalorian weapons looted by their master.', deployed:0, undeployed:1, location:'', misc:'' }
+    ],
+    [
+      { id:newId(), name:'Non-Beskar Vambrace', quantity:5, category:'Equipment', description:'Vambraces with a low tier suite.', deployed:0, undeployed:5, location:'', misc:'' }
+    ],
+    [
+      { id:newId(), name:'Bar of Beskar', quantity:13, category:'Resource', description:'Beskar, one of the most valuable resources in the galaxy. Melted down and prepared for usage.', location:'', misc:'' },
+      { id:newId(), name:'Crate of Shit Explosives', quantity:1, category:'Crate', description:'A crate of low-quality explosives.', location:'', misc:'' },
+      { id:newId(), name:'Crate of Explosives', quantity:1, category:'Crate', description:'A crate of explosives.', location:'', misc:'' }
+    ],
+    [
+      { id:newId(), name:'Wage', quantity:1, income:5000, upkeep:0, net:5000, totalNet:5000 },
+      { id:newId(), name:'Imperial Trooper', quantity:9, income:0, upkeep:1000, net:-1000, totalNet:-9000 },
+      { id:newId(), name:'Obra Skai Workshop Rent', quantity:1, income:0, upkeep:4000, net:-4000, totalNet:-4000 }
+    ],
+    [], [], [], [], []
+  );
+
+  // EDWARD
+  players['edward'] = mkPlayer('edward','Edward',
+    { name:'Drenok', rank:'Lower Lord', age:27, species:'Miraluka', ideology:'Moderate/Reformist', archetype:'Darkness Assassin', lightsaberForm:'Form III: Soresu',
+      fightingStyle:"Built more along a Darkness tank discipline, favoring control, attrition, and pressure. Absorbs punishment then disrupts enemies with the force. Double-bladed lightsaber serves more as a rotating barrier. Layers mental assaults over defense, uses controlled bursts of sorcery, subtle disorientation and fear, and telekinetic pressure.",
+      equipment:['Cybernetic ocular systems', 'Neural Interface Spine Jack', 'Pain Dampening Matrix', 'Cybernetic arm attachments', 'Cybernetic legs'],
+      personality:"The breaking of his entire life has indoctrinated him into believing the Sith's inevitable victory. Does not cling to the past, does not seek revenge but internalizes his anger. Driven by fear and belief rather than sadism.",
+      background:"A Miraluka initiate on the threshold of his Jedi journey when the sack of Coruscant swept him away. Seized by Darth Mekhis and subjected to cybernetic experimentation. After Mekhis's fall he was redirected to Biotic Sciences and eventually sent to Korriban, where he trained under Overseer Ragate and survived the Rite of Blood and Bone.",
+      notes:'', specificSkills:['Stealth / Force Cloak', 'Repair and maintenance', 'Slicing', 'Species Trait: Force Sight'] },
+    { balance:45000, startingBalance:45000 },
+    [], [], [], [],
+    [{ id:newId(), name:'Base Wage', quantity:1, income:5000, upkeep:0, net:5000, totalNet:5000 }],
+    [], [], [], [], []
+  );
+
+
+  // SHOP ITEMS
+  const shopItems = [
+    // Ground Units
+    { id:newId(), category:'Ground Units', name:'Imperial Trooper Squad', description:'Standard squad of 10 Imperial Troopers. Well-trained and equipped.', price:10000, unit:'squad', prerequisite:'Imperial, Sith' },
+    { id:newId(), category:'Ground Units', name:'Imperial Heavy Trooper Squad', description:'Heavy-weapons equipped Imperial troops.', price:15000, unit:'squad', prerequisite:'Imperial, Sith' },
+    { id:newId(), category:'Ground Units', name:'Militia Squad', description:'A squad of 10 locally raised militia.', price:2500, unit:'squad', prerequisite:'' },
+    { id:newId(), category:'Ground Units', name:'Mercenary Platoon', description:'A platoon of 50 PDF-level mercenaries, decently trained.', price:25074, unit:'platoon', prerequisite:'' },
+    { id:newId(), category:'Ground Units', name:'Mercenary Squad', description:'A squad of 10 mercenary soldiers.', price:5000, unit:'squad', prerequisite:'' },
+    { id:newId(), category:'Ground Units', name:'PDF Platoon', description:'A platoon of 50 Planetary Defense Force personnel.', price:15000, unit:'platoon', prerequisite:'' },
+    { id:newId(), category:'Ground Units', name:'Sentinel Mk1 Droid Squad', description:'A squad of 10 Sentinel Mk1 security droids. Effective guards.', price:4000, unit:'squad', prerequisite:'' },
+    { id:newId(), category:'Ground Units', name:'Imperial Marine Division', description:'20,000 marines with 48 light guns.', price:20000000, unit:'division', prerequisite:'Imperial, Sith' },
+    { id:newId(), category:'Ground Units', name:'Imperial Trooper Division', description:'20,000 troops with 36 heavy guns, 400 IFVs.', price:20000000, unit:'division', prerequisite:'Imperial, Sith' },
+    { id:newId(), category:'Ground Units', name:'Imperial Heavy Trooper Brigade', description:'5,000 heavy troops with 12 guns and 50 IFVs.', price:20000000, unit:'brigade', prerequisite:'Imperial, Sith' },
+    // Vehicles
+    { id:newId(), category:'Vehicles', name:'Speeder Bike', description:'A light personal speeder.', price:2000, unit:'unit', prerequisite:'' },
+    { id:newId(), category:'Vehicles', name:'Speeder Car', description:'A civilian speeder car.', price:7000, unit:'unit', prerequisite:'' },
+    { id:newId(), category:'Vehicles', name:'Speeder Truck', description:'A utility speeder truck for cargo transport.', price:7000, unit:'unit', prerequisite:'' },
+    { id:newId(), category:'Vehicles', name:'Speeder Technical', description:'Armored speeder with rear heavy blaster.', price:25000, unit:'unit', prerequisite:'' },
+    { id:newId(), category:'Vehicles', name:'Speeder AA Technical', description:'Armored speeder with rear flak cannon.', price:30000, unit:'unit', prerequisite:'' },
+    // Ships
+    { id:newId(), category:'Ships', name:'Tiny Freighter', description:'A small civilian freighter.', price:50000, unit:'unit', prerequisite:'' },
+    { id:newId(), category:'Ships', name:'Shuttle', description:'A standard civilian shuttle.', price:80000, unit:'unit', prerequisite:'' },
+    { id:newId(), category:'Ships', name:'Tadpole Class Shuttle', description:'Light aftermarket shuttle. Large rear bay, two forward cannons. Carries 18.', price:120000, unit:'unit', prerequisite:'' },
+    { id:newId(), category:'Ships', name:'Fury-class Imperial Interceptor', description:'Fast Sith corvette with heavy shielding.', price:5000000, unit:'ship', prerequisite:'Sith' },
+    { id:newId(), category:'Ships', name:'Rage Class Transport', description:'Armored imperial corvette with advanced shielding.', price:2000000, unit:'ship', prerequisite:'Imperial' },
+    // Droids
+    { id:newId(), category:'Droids', name:'Sentinel Mk1 War Droid', description:'A rudimentary combat droid with good accuracy. Effective as a guard or filler unit. Material cost 400.', price:1300, unit:'unit', prerequisite:'' },
+    { id:newId(), category:'Droids', name:'Arachnid Droid Mk1 (Black Widow)', description:'Anti-insurgency droid. Climbs all terrain, two accurate light blasters. Unique.', price:35000, unit:'unit', prerequisite:'Kinkaid only' },
+    { id:newId(), category:'Droids', name:'OT-9 Artillery Droid', description:'A large artillery droid with heavy indirect shells.', price:50000, unit:'unit', prerequisite:'' },
+    // Equipment
+    { id:newId(), category:'Equipment', name:'Personal Shield', description:'A personal energy shield generator.', price:5000, unit:'unit', prerequisite:'' },
+    { id:newId(), category:'Equipment', name:'Stealth Generator', description:'A personal stealth field generator.', price:15000, unit:'unit', prerequisite:'' },
+    { id:newId(), category:'Equipment', name:'180mm Mortar', description:'A standard medium mortar for fire support.', price:8000, unit:'unit', prerequisite:'' },
+    { id:newId(), category:'Equipment', name:'7-B Sensor Array', description:'A passable sensor array, truck-portable.', price:12000, unit:'unit', prerequisite:'' },
+    { id:newId(), category:'Equipment', name:'Medical Crate', description:'Heals 70 people with common wounds.', price:5000, unit:'crate', prerequisite:'' },
+    { id:newId(), category:'Equipment', name:'Civilian Medical Crate (Large)', description:'Well-stocked medical supply crate.', price:10000, unit:'crate', prerequisite:'' },
+    // Structures
+    { id:newId(), category:'Structures', name:'FOB (Forward Operating Base)', description:'A basic forward operating base with barracks and defenses.', price:50000, unit:'base', prerequisite:'' },
+    { id:newId(), category:'Structures', name:'Small Barracks', description:'Barracks housing up to 60 soldiers.', price:30000, unit:'building', prerequisite:'' },
+    { id:newId(), category:'Structures', name:'Medical Pavillion Tent', description:'A hastily established medical FOB.', price:15000, unit:'unit', prerequisite:'' },
+  ];
+
+  return {
+    players,
+    shopItems,
+    purchaseRequests: [],
+    customLocations: [],
+    adminPassword: DEFAULT_ADMIN_PASSWORD,
+    adminNotes: ''
+  };
+}
+
+// ============================================================
+// STATE
+// ============================================================
+let STATE = migrateState(loadState() || buildSeedState());
+let currentPlayer = null;
+let isAdmin = false;
+let currentView = 'login';
+
+function saveAndRender() { saveState(); render(); }
+
+// ============================================================
+// UTILITIES
+// ============================================================
+function fmt(n) {
+  if(n === null || n === undefined || n === '') return '-';
+  const num = Number(n);
+  if(isNaN(num)) return n;
+  if(num < 0) return '-' + fmt(-num);
+  return num.toLocaleString();
+}
+function fmtCredits(n) {
+  const num = Number(n);
+  if(isNaN(num)) return n;
+  if(num < 0) return `<span class="neg">${CREDIT_SVG}(${fmt(-num)})</span>`;
+  if(num > 0) return `<span class="pos">${CREDIT_SVG}${fmt(num)}</span>`;
+  return '<span class="dim">-</span>';
+}
+// Credit-formatted number with icon, no color coding
+function fmtC(n) {
+  if(n===null||n===undefined||n==='') return '-';
+  const num = Number(n);
+  if(isNaN(num)) return String(n);
+  if(num<0) return CREDIT_SVG+'('+fmt(-num)+')';
+  return CREDIT_SVG+fmt(num);
+}
+function esc(s) {
+  if(!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function notify(msg, err=false) {
+  const div = document.createElement('div');
+  div.className = 'notif-item' + (err?' err':'');
+  div.textContent = msg;
+  document.getElementById('notif').appendChild(div);
+  setTimeout(()=>div.remove(), 3000);
+}
+function calcNet(player) {
+  return (player.income || []).reduce((s, r) => s + (Number(r.totalNet)||0), 0);
+}
+const PLANETS = ['Alderaan','Balmorra','Belsavis','Corellia','Coruscant','Darvannis','Dromund Kaas','Emberlene','Handooine','Hoth','Hutta','Iokath','Ilum','Jabiim','Korriban','Makeb','Manaan','Mek-Sha','Malachor','Nathema','Nar Shaddaa','Odessen','Onderon','Ord Mantell','Ossus','Rishi','Tatooine','Taris','Voss','Yavin IV','Zakuul','Ziost'].sort();
+// Credit symbol: two # verticals + one crossbar centered between them + matching-width 7 diagonal
+const CREDIT_SVG = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 90 105' fill='currentColor' style='height:1.05em;width:auto;display:inline-block;vertical-align:middle;margin-right:-0.27em;position:relative;top:-0.06em'><rect x='8' y='8' width='7' height='40'/><rect x='20' y='8' width='7' height='40'/><rect x='0' y='17' width='50' height='16'/><polygon points='50,15 64,21 34,82 20,86'/></svg>`;
+function getPlayerLocations(p) {
+  const structNames = new Set((p.structures||[]).map(s=>s.name).filter(Boolean));
+  const locs = new Set();
+  ['formations','assets'].forEach(k=>(p[k]||[]).forEach(item=>(item.deployments||[]).forEach(d=>{if(d.location&&d.location.trim())locs.add(d.location.trim());})));
+  return [...locs].filter(l=>!PLANETS.includes(l)&&!structNames.has(l)).sort();
+}
+function totalDeployed(item) {
+  return (item.deployments||[]).reduce((s,d)=>s+(Number(d.qty)||0),0);
+}
+// Summarise category breakdown for a list, e.g. "2 Squad · 1 Fire Team"
+function catSummary(list) {
+  if(!list||!list.length) return '';
+  const counts = {};
+  list.forEach(item => {
+    const c = (item.category||'').trim() || 'Uncategorized';
+    counts[c] = (counts[c]||0) + 1;
+  });
+  return Object.entries(counts).sort((a,b)=>b[1]-a[1]).map(([c,n])=>`${n} ${c}`).join(' · ');
+}
+// Total strength for a set of deployed-force entries (per-item strength × qty)
+function depStrength(entries) {
+  return entries.reduce((s,e)=>s+(Number(e.strength)||0)*(Number(e.qty)||1),0);
+}
+function getStructureForces(p, structName) {
+  const forces = [];
+  ['formations','assets','miscItems'].forEach(key => {
+    const type = key==='formations'?'Formation':key==='assets'?'Asset':'Misc';
+    (p[key]||[]).forEach(item => {
+      (item.deployments||[]).forEach(d => {
+        if(d.location===structName && Number(d.qty)>0)
+          forces.push({ name:item.name, qty:Number(d.qty), type, category:item.category||'', note:d.note||'', strength:item.strength||'' });
+      });
+    });
+  });
+  return forces;
+}
+function renderAttachedForces(forces) {
+  if(!forces.length) return '<span class="dim">—</span>';
+  return forces.map(f=>`<div style="font-size:11px;line-height:1.8"><span class="tag ${f.type==='Formation'?'tag-red':f.type==='Misc'?'tag-blue':'tag-grey'}" style="font-size:10px">${f.qty}×</span> ${esc(f.name)}${f.strength?` <span class="dim">(${(Number(f.strength)*Number(f.qty)).toLocaleString()} men)</span>`:''}${f.note?` <em style="color:var(--text2)">(${esc(f.note)})</em>`:''}</div>`).join('');
+}
+function deploymentSummary(item) {
+  const deps = (item.deployments||[]).filter(d=>Number(d.qty)>0);
+  if(!deps.length) return '<span class="dim" style="font-size:12px">—</span>';
+  return deps.map(d=>`<div style="font-size:11px;line-height:1.7;color:var(--text2)"><span class="badge-deployed" style="font-size:10px">${d.qty}</span> <span class="loc-chip" style="font-size:10px;padding:1px 7px">📍 ${esc(d.location||'Unknown')}</span>${d.note?` <em style="font-size:10px">${esc(d.note)}</em>`:''}</div>`).join('');
+}
+function calcBalance(player) { return Number(player.finances.balance) || 0; }
+
+// ============================================================
+// ROUTING
+// ============================================================
+function navigate(view, playerId) {
+  if(playerId) currentPlayer = playerId;
+  currentView = view;
+  render();
+}
+function logout() { currentPlayer = null; isAdmin = false; currentView = 'login'; render(); }
+
+async function initApp() {
+  try {
+    const { data: row } = await sb.from('game_state').select('data').eq('id', 'main').single();
+    if (row?.data) {
+      const remote = (row.data._version || 0) >= DATA_VERSION ? row.data : migrateState(row.data);
+      STATE = remote;
+      localStorage.setItem('rta_state', JSON.stringify(STATE));
+    }
+  } catch(e) { console.error('Supabase load failed:', e); }
+  currentView = 'login';
+  render();
+}
+
+// ============================================================
+// RENDER SHELL
+// ============================================================
+function render() {
+  const app = document.getElementById('app');
+  const navLinks = document.getElementById('nav-links');
+  const badge = document.getElementById('player-badge');
+  const logoutBtn = document.getElementById('logout-btn');
+
+  // Topbar
+  if(currentPlayer && !isAdmin) {
+    const p = STATE.players[currentPlayer];
+    badge.textContent = p ? p.displayName : '';
+    logoutBtn.style.display = 'inline-block';
+    navLinks.innerHTML = `
+      <button class="nav-btn ${currentView==='dashboard'?'active':''}" onclick="navigate('dashboard')">Dashboard</button>
+      <button class="nav-btn ${currentView==='character'?'active':''}" onclick="navigate('character')">Character</button>
+      <button class="nav-btn ${currentView==='assets'?'active':''}" onclick="navigate('assets')">Assets &amp; Forces</button>
+      <button class="nav-btn ${currentView==='deployed'?'active':''}" onclick="navigate('deployed')">Deployed Forces</button>
+      <button class="nav-btn ${currentView==='finance'?'active':''}" onclick="navigate('finance')">Finance</button>
+      <button class="nav-btn ${currentView==='shop'?'active':''}" onclick="navigate('shop')">Shop</button>
+    `;
+  } else if(isAdmin) {
+    badge.textContent = '⚙ GM';
+    logoutBtn.style.display = 'inline-block';
+    navLinks.innerHTML = `
+      <button class="nav-btn ${currentView==='admin-overview'?'active':''}" onclick="navigate('admin-overview')">Overview</button>
+      <button class="nav-btn ${currentView==='admin-players'?'active':''}" onclick="navigate('admin-players')">Players</button>
+      <button class="nav-btn ${currentView==='admin-shop'?'active':''}" onclick="navigate('admin-shop')">Shop Items</button>
+      <button class="nav-btn ${currentView==='admin-requests'?'active':''}" onclick="navigate('admin-requests')">Purchase Requests${pendingCount()>0?`<span id="pending-badge">${pendingCount()}</span>`:''}</button>
+      <button class="nav-btn ${currentView==='admin-deploy'?'active':''}" onclick="navigate('admin-deploy')">Deployments</button>
+      <button class="nav-btn ${currentView==='admin-notes'?'active':''}" onclick="navigate('admin-notes')">Notes</button>
+    `;
+  } else {
+    badge.textContent = '';
+    logoutBtn.style.display = 'none';
+    navLinks.innerHTML = '';
+  }
+
+  // View
+  switch(currentView) {
+    case 'login': app.innerHTML = renderLogin(); break;
+    case 'dashboard': app.innerHTML = renderDashboard(); break;
+    case 'character': app.innerHTML = renderCharacter(); break;
+    case 'assets': app.innerHTML = renderAssets(); break;
+    case 'deployed': app.innerHTML = renderDeployed(); break;
+    case 'finance': app.innerHTML = renderFinance(); break;
+    case 'shop': app.innerHTML = renderShop(); break;
+    case 'admin-overview': app.innerHTML = renderAdminOverview(); break;
+    case 'admin-players': app.innerHTML = renderAdminPlayers(); break;
+    case 'admin-shop': app.innerHTML = renderAdminShop(); break;
+    case 'admin-requests': app.innerHTML = renderAdminRequests(); break;
+    case 'admin-deploy': app.innerHTML = renderAdminDeploy(); break;
+    case 'admin-notes': app.innerHTML = renderAdminNotes(); break;
+    default: app.innerHTML = renderLogin();
+  }
+}
+
+function pendingCount() {
+  return (STATE.purchaseRequests||[]).filter(r=>r.status==='pending').length;
+}
+
+
+// ============================================================
+// LOGIN VIEW
+// ============================================================
+function renderLogin() {
+  const cards = Object.values(STATE.players).map(p => {
+    return `<div class="player-card" onclick="showPlayerLogin('${p.id}')">
+      <div class="pc-name">${esc(p.displayName)}</div>
+      <div class="pc-char">${esc(p.character.name)}</div>
+      <div class="pc-rank">${esc(p.character.rank)}</div>
+      <div class="dim" style="font-size:11px;margin-top:6px">${p.password ? '🔒 Password protected' : '🔓 No password set'}</div>
+    </div>`;
+  }).join('');
+  return `<div id="login-page">
+    <h1>The Old Republic: Ascendance</h1>
+    <p>Select your character to continue</p>
+    <div class="player-grid">${cards}</div>
+    <div style="margin-top:32px;text-align:center">
+      <button class="btn btn-ghost btn-sm" onclick="showAdminLogin()">⚙ Admin Access</button>
+    </div>
+  </div>`;
+}
+
+function showPlayerLogin(id) {
+  const p = STATE.players[id];
+  if (!p) return;
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.id = 'player-login-modal';
+  modal.innerHTML = `<div class="modal" style="min-width:300px;text-align:center">
+    <div style="font-size:18px;font-weight:700;color:var(--gold);margin-bottom:4px">${esc(p.displayName)}</div>
+    <div class="dim" style="margin-bottom:20px">${esc(p.character.name)} · ${esc(p.character.rank)}</div>
+    <input type="password" id="plogin-pw" placeholder="Password"
+      onkeydown="if(event.key==='Enter')doPlayerLogin('${id}')"
+      style="background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:9px 12px;border-radius:4px;font-size:14px;width:100%;outline:none;margin-bottom:8px">
+    <div id="plogin-err" style="color:var(--red2);font-size:12px;margin-bottom:10px;display:none"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost" style="flex:1" onclick="document.getElementById('player-login-modal').remove()">Cancel</button>
+      <button class="btn btn-gold" style="flex:1" onclick="doPlayerLogin('${id}')">Enter</button>
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+  setTimeout(() => document.getElementById('plogin-pw')?.focus(), 50);
+}
+
+function doPlayerLogin(id) {
+  const p = STATE.players[id];
+  const pw = document.getElementById('plogin-pw')?.value || '';
+  const errEl = document.getElementById('plogin-err');
+  const master = STATE.adminPassword || 'rta2024';
+  if (pw === master || pw === (p.password || '') || (!p.password && pw === '')) {
+    document.getElementById('player-login-modal')?.remove();
+    currentPlayer = id; isAdmin = false; currentView = 'dashboard'; render(); return;
+  }
+  errEl.textContent = 'Incorrect password.'; errEl.style.display = 'block';
+}
+
+// ============================================================
+// DASHBOARD
+// ============================================================
+function renderDashboard() {
+  const p = STATE.players[currentPlayer];
+  if(!p) return '';
+  const net = calcNet(p);
+  const bal = calcBalance(p);
+  const proj = bal + net;
+  const formations = p.formations||[];
+  const assets = p.assets||[];
+  const totalDeployedCount = formations.reduce((s,f)=>s+totalDeployed(f),0) + assets.reduce((s,a)=>s+totalDeployed(a),0);
+  const totalUndeployed = formations.reduce((s,f)=>s+(Number(f.undeployed)||0),0) + assets.reduce((s,a)=>s+(Number(a.undeployed)||0),0);
+
+  return `
+  <div class="grid4" style="margin-bottom:16px">
+    <div class="stat-box"><div class="label">Balance</div><div class="value ${bal<0?'neg':''}">${fmtC(bal)}</div></div>
+    <div class="stat-box"><div class="label">Net Income</div><div class="value ${net<0?'neg':'pos'}">${net>=0?'+':'-'}${CREDIT_SVG}${fmt(Math.abs(net))}</div></div>
+    <div class="stat-box"><div class="label">Projected Balance</div><div class="value ${proj<0?'neg':''}">${fmtC(proj)}</div></div>
+    <div class="stat-box"><div class="label">Forces</div><div class="value">${totalDeployedCount}<span style="color:var(--text2);font-size:14px"> dep / ${totalUndeployed} undep</span></div></div>
+  </div>
+  <div class="grid2">
+    <div class="card">
+      <div class="card-title">Character Summary</div>
+      <table><tbody>
+        <tr><td class="dim" style="width:130px">Name</td><td class="gold">${esc(p.character.name)}</td></tr>
+        <tr><td class="dim">Rank</td><td>${esc(p.character.rank)}</td></tr>
+        <tr><td class="dim">Age</td><td>${esc(p.character.age)}</td></tr>
+        <tr><td class="dim">Species</td><td>${esc(p.character.species)}</td></tr>
+        <tr><td class="dim">Ideology</td><td>${esc(p.character.ideology)}</td></tr>
+        <tr><td class="dim">Archetype</td><td>${esc(p.character.archetype)}</td></tr>
+        <tr><td class="dim">Lightsaber Form</td><td>${esc(p.character.lightsaberForm)}</td></tr>
+      </tbody></table>
+      <div style="margin-top:10px"><button class="btn btn-ghost btn-sm" onclick="navigate('character')">View Full Sheet</button></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Income Breakdown</div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Source</th><th>Qty</th><th class="td-num">Income</th><th class="td-num">Upkeep</th><th class="td-num">Total Net</th></tr></thead>
+        <tbody>
+          ${(p.income||[]).slice(0,8).map(r=>`<tr>
+            <td>${esc(r.name)}</td>
+            <td class="dim">${r.quantity}</td>
+            <td class="td-num pos">${r.income>0?fmtC(r.income):''}</td>
+            <td class="td-num neg">${r.upkeep>0?CREDIT_SVG+'('+fmt(r.upkeep)+')':''}</td>
+            <td class="td-num ${Number(r.totalNet)>=0?'pos':'neg'}">${Number(r.totalNet)>=0?'+':'-'}${CREDIT_SVG}${fmt(Math.abs(Number(r.totalNet)))}</td>
+          </tr>`).join('')}
+          ${(p.income||[]).length===0?'<tr class="empty-row"><td colspan="5">No income entries</td></tr>':''}
+          ${(p.income||[]).length>8?`<tr><td colspan="5" class="dim" style="text-align:center;font-size:12px">+${(p.income.length-8)} more — <a href="#" onclick="navigate('finance');return false" style="color:var(--gold)">view all</a></td></tr>`:''}
+        </tbody>
+      </table></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Formations &amp; Assets Overview <button class="btn btn-ghost btn-sm" onclick="navigate('assets')">Manage</button></div>
+    <div class="grid2">
+      <div>
+        <div style="color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Formations (${formations.length})</div>
+        <table><thead><tr><th>Name</th><th>Qty</th><th>Deployed</th><th>Location(s)</th></tr></thead><tbody>
+          ${formations.slice(0,6).map(f=>{const td=totalDeployed(f);const locs=(f.deployments||[]).filter(d=>d.qty>0).map(d=>d.location||'?').join(', ')||'—';return`<tr><td>${esc(f.name)}</td><td class="dim">${f.quantity}</td><td><span class="badge-deployed">${td}</span><span class="dim"> / ${f.undeployed}</span></td><td class="dim" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(locs)}</td></tr>`;}).join('')}
+          ${formations.length===0?'<tr class="empty-row"><td colspan="4">None</td></tr>':''}
+        </tbody></table>
+      </div>
+      <div>
+        <div style="color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Key Assets (${assets.length})</div>
+        <table><thead><tr><th>Name</th><th>Qty</th><th>Deployed</th><th>Location(s)</th></tr></thead><tbody>
+          ${assets.slice(0,6).map(a=>{const td=totalDeployed(a);const locs=(a.deployments||[]).filter(d=>d.qty>0).map(d=>d.location||'?').join(', ')||'—';return`<tr><td>${esc(a.name)}</td><td class="dim">${a.quantity}</td><td><span class="badge-deployed">${td}</span><span class="dim"> / ${a.undeployed}</span></td><td class="dim" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(locs)}</td></tr>`;}).join('')}
+          ${assets.length===0?'<tr class="empty-row"><td colspan="4">None</td></tr>':''}
+        </tbody></table>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ============================================================
+// CHARACTER SHEET
+// ============================================================
+function renderCharacter() {
+  const p = STATE.players[currentPlayer];
+  if(!p) return '';
+  const c = p.character;
+  const equip = Array.isArray(c.equipment) ? c.equipment.filter(e=>e) : [c.equipment];
+
+  return `
+  <div class="card">
+    <div class="card-title">${esc(p.displayName)} — Character Sheet</div>
+    <div class="grid2">
+      <div>
+        <table><tbody>
+          <tr><td class="dim" style="width:140px">Name</td><td class="gold" style="font-size:16px;font-weight:700">${esc(c.name)}</td></tr>
+          <tr><td class="dim">Rank</td><td><span class="tag tag-red">${esc(c.rank)}</span></td></tr>
+          <tr><td class="dim">Age</td><td>${esc(c.age)}</td></tr>
+          <tr><td class="dim">Species</td><td>${esc(c.species)}</td></tr>
+          <tr><td class="dim">Ideology</td><td>${esc(c.ideology)}</td></tr>
+          <tr><td class="dim">Archetype</td><td>${esc(c.archetype)}</td></tr>
+          <tr><td class="dim">Lightsaber Form</td><td>${esc(c.lightsaberForm)}</td></tr>
+        </tbody></table>
+      </div>
+      <div>
+        ${c.charImage ? `<img src="${c.charImage}" class="char-portrait">` : ''}
+        <div style="margin-bottom:10px">
+          <div class="dim" style="font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Equipment</div>
+          ${equip.length?equip.map(e=>`<span class="tag tag-grey">${esc(e)}</span>`).join(' '):'<span class="dim">None listed</span>'}
+        </div>
+        <div>
+          <div class="dim" style="font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Notes</div>
+          <div class="text-block">${esc(c.notes)||'—'}</div>
+        </div>
+      </div>
+    </div>
+    <hr>
+    <div class="grid2">
+      <div>
+        <div class="dim" style="font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Fighting Style</div>
+        <div class="text-block">${esc(c.fightingStyle)||'—'}</div>
+      </div>
+      <div>
+        <div class="dim" style="font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Personality</div>
+        <div class="text-block">${esc(c.personality)||'—'}</div>
+      </div>
+    </div>
+    <hr>
+    <div>
+      <div class="dim" style="font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Background</div>
+      <div class="text-block">${esc(c.background)||'—'}</div>
+    </div>
+  </div>
+  ${renderTrophiesSection(p)}
+  ${renderApprenticesSection(p)}
+  ${renderArtifactsSection(p)}
+  ${renderFactionSection(p)}
+  `;
+}
+
+function renderFactionSection(p) {
+  const fd = p.factionData;
+  if(!fd) return '';
+  let html = '';
+
+  // Fashoda — Cathar Council + Ideologies + Death Claw + Internal Groups + Government
+  if(fd.catharCouncil) {
+    html += `<div class="card">
+      <div class="card-title">Cathar Council (Taris)</div>
+      <div class="grid2">
+        <div>
+          <div class="dim" style="font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Council Members — Total Pop: ${fmt(fd.catharTotalPop)}</div>
+          <div class="tbl-wrap"><table>
+            <thead><tr><th>Role</th><th>Name</th><th>Ideology</th></tr></thead>
+            <tbody>${fd.catharCouncil.map(m=>`<tr><td class="dim">${esc(m.role)}</td><td class="gold">${esc(m.name)}</td><td>${esc(m.ideology)}</td></tr>`).join('')}</tbody>
+          </table></div>
+        </div>
+        <div>
+          <div class="dim" style="font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Ideology Breakdown</div>
+          <div class="tbl-wrap"><table>
+            <thead><tr><th>Ideology</th><th class="td-num">Population</th><th class="td-num">%</th></tr></thead>
+            <tbody>${(fd.catharIdeologies||[]).map(i=>`<tr><td>${esc(i.ideology)}</td><td class="td-num">${fmt(i.population)}</td><td class="td-num">${Math.round(i.percent*100)}%</td></tr>`).join('')}</tbody>
+          </table></div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  if(fd.deathClawSegments) {
+    html += `<div class="card">
+      <div class="card-title">Death Claw Pirate Segments</div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Base</th><th>Est. Troops</th><th>Description</th></tr></thead>
+        <tbody>${fd.deathClawSegments.map(s=>`<tr>
+          <td class="gold">${esc(s.base)}</td>
+          <td><span class="tag tag-red">${esc(s.troops)}</span></td>
+          <td class="dim">${esc(s.description)}</td>
+        </tr>`).join('')}</tbody>
+      </table></div>
+    </div>`;
+  }
+
+  if(fd.internalGroups) {
+    html += `<div class="card">
+      <div class="card-title">Fashoda Internal Political Groups</div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Faction</th><th>Policy</th><th class="td-num">Population</th><th class="td-num">%</th><th>Description</th></tr></thead>
+        <tbody>${fd.internalGroups.filter(g=>g.name).map(g=>`<tr>
+          <td class="gold">${esc(g.name)}</td>
+          <td><span class="tag tag-grey" style="font-size:11px">${esc(g.policy)}</span></td>
+          <td class="td-num">${fmt(g.population)}</td>
+          <td class="td-num">${g.percent>0?Math.round(g.percent*100)+'%':''}</td>
+          <td class="dim" style="max-width:300px">${esc(g.description)}</td>
+        </tr>`).join('')}</tbody>
+      </table></div>
+    </div>`;
+  }
+
+  if(fd.notables || fd.government) {
+    html += `<div class="card"><div class="card-title">Notables &amp; Government Structure</div><div class="grid2">`;
+    if(fd.notables) {
+      html += `<div>
+        <div class="dim" style="font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Notables</div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>Name</th><th>Branch</th><th>Description</th></tr></thead>
+          <tbody>${fd.notables.map(n=>`<tr><td class="gold">${esc(n.name)}</td><td><span class="tag tag-grey">${esc(n.branch)}</span></td><td class="dim">${esc(n.description)}</td></tr>`).join('')}</tbody>
+        </table></div>
+      </div>`;
+    }
+    if(fd.government) {
+      const g = fd.government;
+      html += `<div>
+        <div class="dim" style="font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Government</div>
+        <table><tbody>
+          <tr><td class="dim" style="width:180px">Head of State</td><td class="gold">${esc(g.headOfState)}</td></tr>
+          <tr><td class="dim">Head of Civil Gov.</td><td>${esc(g.headOfCivilianGovernment)}</td></tr>
+          <tr><td class="dim">Head of Military</td><td>${esc(g.headOfMilitary)}</td></tr>
+        </tbody></table>
+        <div class="dim" style="font-size:11px;text-transform:uppercase;letter-spacing:1px;margin:10px 0 6px">Advisory Council</div>
+        <table><tbody>
+          ${(g.advisoryCouncil||[]).map(c=>`<tr><td class="dim">${esc(c.faction)}</td><td class="gold">${esc(c.representative)}</td></tr>`).join('')}
+        </tbody></table>
+        ${g.military?`<div class="dim" style="font-size:11px;text-transform:uppercase;letter-spacing:1px;margin:10px 0 6px">Military Chain</div>
+        <table><tbody>
+          <tr><td class="dim" style="width:180px">Head of Military</td><td>${esc(g.military.headOfMilitary)}</td></tr>
+          <tr><td class="dim">Head of Army</td><td>${esc(g.military.headOfArmy)}</td></tr>
+          <tr><td class="dim">Head of Navy</td><td>${esc(g.military.headOfNavy)}</td></tr>
+          <tr><td class="dim">Head of Auxiliaries</td><td>${esc(g.military.headOfAuxiliaries)}</td></tr>
+        </tbody></table>`:''}
+      </div>`;
+    }
+    html += `</div></div>`;
+  }
+
+  // Kinkaid — Imperial Doctrinal Control
+  if(fd.imperialDoctinalControl) {
+    const idc = fd.imperialDoctinalControl;
+    html += `<div class="card">
+      <div class="card-title">Imperial Doctrinal Control (IDC)</div>
+      <table><tbody>
+        <tr><td class="dim" style="width:180px">Commander</td><td class="gold">${esc(idc.commander)}</td></tr>
+        <tr><td class="dim">Vessel</td><td>${esc(idc.vessel)}</td></tr>
+      </tbody></table>
+      <div class="grid2" style="margin-top:12px">
+        <div>
+          <div class="dim" style="font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Oversight Team</div>
+          ${(idc.teams.oversightTeam.squads||[]).map(s=>`<div style="padding:3px 0;border-bottom:1px solid var(--border)">${esc(s)}</div>`).join('')}
+        </div>
+        <div>
+          <div class="dim" style="font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Investigative Team</div>
+          ${(idc.teams.investigativeTeam.units||[]).map(u=>`<div style="padding:3px 0;border-bottom:1px solid var(--border)">${esc(u)}</div>`).join('')}
+        </div>
+      </div>
+    </div>`;
+  }
+
+  return html;
+}
+
+function renderTrophiesSection(p) {
+  if(!(p.trophies||[]).length) return '';
+  return `<div class="card">
+    <div class="card-title">Trophies</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Name</th><th>Qty</th><th>Aura</th><th>Description</th><th>Origin Conflict</th><th>Claimed From</th></tr></thead>
+      <tbody>${p.trophies.map(t=>`<tr>
+        <td class="gold">${esc(t.name)}</td><td>${t.number}</td>
+        <td><span class="tag ${t.aura==='Major'?'tag-gold':t.aura==='High'?'tag-red':'tag-grey'}">${esc(t.aura)}</span></td>
+        <td class="dim">${esc(t.description)}</td><td class="dim">${esc(t.conflict)}</td><td class="dim">${esc(t.claimedFrom)}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+  </div>`;
+}
+
+function renderApprenticesSection(p) {
+  if(!(p.apprentices||[]).length) return '';
+  return `<div class="card">
+    <div class="card-title">Apprentices</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Name</th><th>Form</th><th>Rank</th><th>Specialization</th><th>Location</th><th>Description</th></tr></thead>
+      <tbody>${p.apprentices.map(a=>`<tr>
+        <td class="gold">${esc(a.name)}</td><td>${esc(a.form)}</td>
+        <td><span class="tag tag-red">${esc(a.rank)}</span></td>
+        <td>${esc(a.specialization)}</td><td class="dim">${esc(a.location)}</td>
+        <td class="dim" style="max-width:280px">${esc(a.description)}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+  </div>`;
+}
+
+function renderArtifactsSection(p) {
+  if(!(p.artifacts||[]).length) return '';
+  return `<div class="card">
+    <div class="card-title">Artifact Collection</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Name</th><th>Qty</th><th>Quality</th><th>Description</th><th>Effects</th></tr></thead>
+      <tbody>${p.artifacts.map(a=>`<tr>
+        <td class="gold">${esc(a.name)}</td><td>${a.number}</td>
+        <td><span class="tag ${a.quality==='Major'?'tag-gold':a.quality==='Normal'?'tag-blue':'tag-grey'}">${esc(a.quality)}</span></td>
+        <td class="dim" style="max-width:220px">${esc(a.description)}</td>
+        <td style="max-width:200px">${esc(a.effects)}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+  </div>`;
+}
+
+// ============================================================
+// ASSETS & FORCES
+// ============================================================
+let assetsTab = 'formations';
+function renderAssets() {
+  const p = STATE.players[currentPlayer];
+  if(!p) return '';
+
+  const tabs = ['formations','assets','structures','misc'];
+  const tabLabels = { formations:'Formations', assets:'Assets', structures:'Structures', misc:'Misc Items', rosters:'Unit Rosters', droids:'Droid Designs' };
+  if(p.unitRosters && Object.keys(p.unitRosters).length) tabs.push('rosters');
+  if(p.droids && p.droids.length) tabs.push('droids');
+
+  return `
+  <div class="tab-bar">
+    ${tabs.map(t=>`<div class="tab ${assetsTab===t?'active':''}" onclick="assetsTab='${t}';render()">${tabLabels[t]}</div>`).join('')}
+  </div>
+  ${assetsTab==='formations' ? renderFormationsTab(p) : ''}
+  ${assetsTab==='assets' ? renderAssetsTab(p) : ''}
+  ${assetsTab==='structures' ? renderStructuresTab(p) : ''}
+  ${assetsTab==='misc' ? renderMiscTab(p) : ''}
+  ${assetsTab==='rosters' ? renderUnitRostersTab(p) : ''}
+  ${assetsTab==='droids' ? renderDroidDesignsTab(p) : ''}
+  `;
+}
+
+// ============================================================
+// DEPLOYED FORCES — ACCORDION
+// ============================================================
+let _deployedOpen = {};
+let _deployedSubOpen = {};
+
+function _buildLocationTree(p) {
+  // tree: { worldName: { structures: { structName: { obj, forces:[] } }, generic: [] } }
+  const tree = {};
+
+  const ensureWorld = w => { if(!tree[w]) tree[w] = { structures:{}, generic:[] }; };
+
+  // Register every structure under its planet
+  (p.structures||[]).forEach(s => {
+    const world = (s.location||'').trim() || 'Unknown';
+    ensureWorld(world);
+    if(s.name&&!tree[world].structures[s.name]) {
+      tree[world].structures[s.name] = { obj:s, forces:[] };
+    }
+  });
+
+  // Helper: look up if a name matches a structure and return its world
+  const structIndex = {};
+  (p.structures||[]).forEach(s => { if(s.name) structIndex[s.name] = (s.location||'').trim()||'Unknown'; });
+
+  // Place deployed formations/assets/misc
+  ['formations','assets','miscItems'].forEach(key => {
+    const type = key==='formations'?'Formation':key==='assets'?'Asset':'Misc';
+    (p[key]||[]).forEach(item => {
+      (item.deployments||[]).forEach(d => {
+        if(!(Number(d.qty)>0)) return;
+        const loc = (d.location||'').trim();
+        const entry = { type, name:item.name, qty:d.qty, category:item.category||'', note:d.note||'', misc:item.misc||'', strength:item.strength||'' };
+        if(structIndex[loc]!==undefined) {
+          // This location is a known structure name
+          const world = structIndex[loc];
+          ensureWorld(world);
+          if(!tree[world].structures[loc]) tree[world].structures[loc] = { obj:null, forces:[] };
+          tree[world].structures[loc].forces.push(entry);
+        } else if(PLANETS.includes(loc)) {
+          ensureWorld(loc);
+          tree[loc].generic.push(entry);
+        } else {
+          // Unknown / custom location — treat as its own top-level world
+          const world = loc||'Unassigned';
+          ensureWorld(world);
+          tree[world].generic.push(entry);
+        }
+      });
+    });
+  });
+
+  return tree;
+}
+
+function _deployToggle(world) {
+  _deployedOpen[world] = !_deployedOpen[world];
+  document.getElementById('app').innerHTML = renderDeployed();
+}
+function _deploySubToggle(wKey, sKey) {
+  const k = wKey+'::'+sKey;
+  _deployedSubOpen[k] = !_deployedSubOpen[k];
+  document.getElementById('app').innerHTML = renderDeployed();
+}
+
+function _renderSubSection(world, label, forces, structObj) {
+  const k = world+'::'+label;
+  const open = !!_deployedSubOpen[k];
+  const totalQty = forces.reduce((s,e)=>s+Number(e.qty),0);
+  const isGeneric = label==='Generic';
+  const icon = isGeneric ? '🌐' : '🏛';
+
+  let body = '';
+  if(open) {
+    if(structObj) {
+      const p = STATE.players[currentPlayer];
+      const attachedForces = p ? getStructureForces(p, structObj.name) : [];
+      body += `<div class="struct-info">
+        <span style="color:var(--gold);font-weight:600">${esc(structObj.name)}</span>
+        ${structObj.category?`  <span class="tag tag-grey" style="font-size:10px">${esc(structObj.category)}</span>`:''}
+        ${structObj.quantity>1?`  <span class="dim" style="font-size:11px">×${structObj.quantity}</span>`:''}
+        ${structObj.locationNote?`  <em style="font-size:11px;color:var(--text2)">${esc(structObj.locationNote)}</em>`:''}
+        ${structObj.description?`<div class="dim" style="margin-top:4px;font-size:12px">${esc(structObj.description)}</div>`:''}
+        ${structObj.misc?`<div style="margin-top:3px;font-size:11px;color:var(--text2)">${esc(structObj.misc)}</div>`:''}
+      </div>`;
+    }
+    if(forces.length) {
+      const rows = forces.map(e=>`<tr>
+        <td class="gold">${esc(e.name)}</td>
+        <td><span class="tag ${e.type==='Formation'?'tag-red':e.type==='Asset'?'tag-grey':'tag-blue'}">${e.type}</span></td>
+        <td>${e.qty}</td>
+        <td class="dim">${e.strength?(Number(e.strength)*Number(e.qty)).toLocaleString()+' men':'—'}</td>
+        <td class="dim">${esc(e.category)}</td>
+        <td class="dim">${e.note?`<em>${esc(e.note)}</em>`:'—'}</td>
+      </tr>`).join('');
+      body += `<div class="tbl-wrap"><table>
+        <thead><tr><th>Name</th><th>Type</th><th>Qty</th><th>Strength (total)</th><th>Category</th><th>Note</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>`;
+    } else {
+      body += `<div class="dim" style="font-size:12px;padding:4px 0">No forces deployed here.</div>`;
+    }
+  }
+
+  const totalStrength = depStrength(forces);
+  const wEsc = world.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  const lEsc = label.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  const subMeta = [
+    totalQty>0 ? `${totalQty} unit${totalQty!==1?'s':''}` : 'Empty',
+    totalStrength>0 ? `${totalStrength.toLocaleString()} men` : null,
+    structObj ? 'Structure' : null
+  ].filter(Boolean).join(' · ');
+  return `<div class="subloc-row">
+    <div class="subloc-hdr" onclick="_deploySubToggle('${wEsc}','${lEsc}')">
+      <span class="subloc-name">${icon} ${esc(label)}</span>
+      <span class="subloc-meta">${subMeta} ${open?'▲':'▼'}</span>
+    </div>
+    ${open?`<div class="subloc-body">${body}</div>`:''}
+  </div>`;
+}
+
+function renderDeployed() {
+  const p = STATE.players[currentPlayer];
+  if(!p) return '';
+  const tree = _buildLocationTree(p);
+  const worlds = Object.keys(tree).sort((a,b)=>{
+    if(a==='Unassigned'||a==='Unknown') return 1;
+    if(b==='Unassigned'||b==='Unknown') return -1;
+    return a.localeCompare(b);
+  });
+
+  if(!worlds.length) return `<div class="card"><div class="dim" style="padding:24px;text-align:center">No deployed forces or structures.</div></div>`;
+
+  return worlds.map(world => {
+    const wd = tree[world];
+    const open = !!_deployedOpen[world];
+    const structNames = Object.keys(wd.structures);
+    const allForces = [...wd.generic, ...structNames.flatMap(n=>wd.structures[n].forces)];
+    const totalUnits = allForces.reduce((s,e)=>s+Number(e.qty),0);
+    const totalStrength = depStrength(allForces);
+
+    let body = '';
+    if(open) {
+      // Generic section (only if there are generic forces)
+      if(wd.generic.length) body += _renderSubSection(world,'Generic',wd.generic,null);
+      // One section per structure
+      structNames.forEach(n=>{
+        const sd = wd.structures[n];
+        body += _renderSubSection(world,n,sd.forces,sd.obj);
+      });
+    }
+
+    const wEsc = world.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    return `<div class="world-card">
+      <div class="world-hdr" onclick="_deployToggle('${wEsc}')">
+        <span style="font-size:16px">📍</span>
+        <span class="world-name">${esc(world)}</span>
+        <span class="world-meta">${totalUnits} unit${totalUnits!==1?'s':''}${totalStrength>0?` · ${totalStrength.toLocaleString()} men`:''} · ${structNames.length} structure${structNames.length!==1?'s':''}</span>
+        <span class="chevron">${open?'▲':'▼'}</span>
+      </div>
+      ${open?`<div class="world-body">${body}</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+function renderFormationsTab(p) {
+  const rows = (p.formations||[]).map(f => `<tr>
+    <td class="gold">${esc(f.name)}</td>
+    <td>${f.quantity}</td>
+    <td style="text-align:center">${f.strength?`<span class="tag tag-grey" style="font-size:11px">${f.strength} men</span>`:'<span class="dim">—</span>'}</td>
+    <td><span class="tag tag-grey">${esc(f.category)}</span></td>
+    <td class="dim" style="max-width:220px">${esc(f.description)}</td>
+    <td>
+      <div class="deploy-ctrl">
+        <span class="badge-deployed" title="Deployed">${totalDeployed(f)}</span>
+        <span class="sep">/</span>
+        <span class="badge-undeployed" title="Undeployed">${f.undeployed}</span>
+        <button class="btn btn-ghost btn-sm" onclick="showDeployModal('formations','${f.id}')">Reposition</button>
+      </div>
+      ${deploymentSummary(f)}
+    </td>
+    <td class="dim">${esc(f.misc)}</td>
+  </tr>`).join('');
+
+  const fList = p.formations||[];
+  const fCats = catSummary(fList);
+  return `<div class="card">
+    <div class="card-title">Formations <span class="tag tag-grey">${fList.length}</span>${fCats?`<span class="dim" style="font-size:11px;font-weight:normal;margin-left:8px">${fCats}</span>`:''}
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Name</th><th>Qty</th><th>Strength</th><th>Category</th><th>Description</th><th>Deployed / Undeployed</th><th>Misc</th></tr></thead>
+      <tbody>${rows || '<tr class="empty-row"><td colspan="7">No formations</td></tr>'}</tbody>
+    </table></div>
+  </div>`;
+}
+
+function renderAssetsTab(p) {
+  const rows = (p.assets||[]).map(a => `<tr>
+    <td class="gold">${esc(a.name)}</td>
+    <td>${a.quantity}</td>
+    <td><span class="tag tag-grey">${esc(a.category)}</span></td>
+    <td class="dim" style="max-width:200px">${esc(a.description)}</td>
+    <td>
+      <div class="deploy-ctrl">
+        <span class="badge-deployed" title="Deployed">${totalDeployed(a)}</span>
+        <span class="sep">/</span>
+        <span class="badge-undeployed" title="Undeployed">${a.undeployed}</span>
+        <button class="btn btn-ghost btn-sm" onclick="showDeployModal('assets','${a.id}')">Reposition</button>
+      </div>
+      ${deploymentSummary(a)}
+    </td>
+    <td class="dim">${esc(a.misc)}</td>
+  </tr>`).join('');
+
+  const aList = p.assets||[];
+  const aCats = catSummary(aList);
+  return `<div class="card">
+    <div class="card-title">Assets <span class="tag tag-grey">${aList.length}</span>${aCats?`<span class="dim" style="font-size:11px;font-weight:normal;margin-left:8px">${aCats}</span>`:''}
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Name</th><th>Qty</th><th>Category</th><th>Description</th><th>Deployed / Undeployed</th><th>Misc</th></tr></thead>
+      <tbody>${rows || '<tr class="empty-row"><td colspan="6">No assets</td></tr>'}</tbody>
+    </table></div>
+  </div>`;
+}
+
+function renderStructuresTab(p) {
+  const rows = (p.structures||[]).map(s => {
+    const forces = getStructureForces(p, s.name);
+    return `<tr>
+      <td class="gold">${esc(s.name)}</td>
+      <td>${s.quantity}</td>
+      <td><span class="tag tag-grey">${esc(s.category)}</span></td>
+      <td class="dim" style="max-width:200px">${esc(s.description)}</td>
+      <td class="dim">${esc(s.location)}${s.locationNote?`<br><em style="font-size:11px;color:var(--text2)">${esc(s.locationNote)}</em>`:''}</td>
+      <td>${renderAttachedForces(forces)}</td>
+      <td class="dim">${esc(s.misc)}</td>
+    </tr>`;
+  }).join('');
+
+  const sList = p.structures||[];
+  const sCats = catSummary(sList);
+  return `<div class="card">
+    <div class="card-title">Structures <span class="tag tag-grey">${sList.length}</span>${sCats?`<span class="dim" style="font-size:11px;font-weight:normal;margin-left:8px">${sCats}</span>`:''}
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Name</th><th>Qty</th><th>Category</th><th>Description</th><th>Location</th><th>Attached Forces</th><th>Misc</th></tr></thead>
+      <tbody>${rows || '<tr class="empty-row"><td colspan="7">No structures</td></tr>'}</tbody>
+    </table></div>
+  </div>`;
+}
+
+function renderMiscTab(p) {
+  const rows = (p.miscItems||[]).map(m => `<tr>
+    <td class="gold">${esc(m.name)}</td>
+    <td>${m.quantity}</td>
+    <td><span class="tag tag-grey">${esc(m.category)}</span></td>
+    <td class="dim" style="max-width:240px">${esc(m.description)}</td>
+    <td>
+      <div class="deploy-ctrl">
+        <span class="badge-deployed" title="Deployed">${totalDeployed(m)}</span>
+        <span class="sep">/</span>
+        <span class="badge-undeployed" title="Undeployed">${m.undeployed}</span>
+        <button class="btn btn-ghost btn-sm" onclick="showDeployModal('miscItems','${m.id}')">Reposition</button>
+      </div>
+      ${deploymentSummary(m)}
+    </td>
+    <td class="dim">${esc(m.misc)}</td>
+  </tr>`).join('');
+
+  const mList = p.miscItems||[];
+  const mCats = catSummary(mList);
+  return `<div class="card">
+    <div class="card-title">Misc Items <span class="tag tag-grey">${mList.length}</span>${mCats?`<span class="dim" style="font-size:11px;font-weight:normal;margin-left:8px">${mCats}</span>`:''}
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Name</th><th>Qty</th><th>Category</th><th>Description</th><th>Deployed / Undeployed</th><th>Misc</th></tr></thead>
+      <tbody>${rows || '<tr class="empty-row"><td colspan="6">No misc items</td></tr>'}</tbody>
+    </table></div>
+  </div>`;
+}
+
+function renderUnitRostersTab(p) {
+  const rosters = p.unitRosters || {};
+  const names = Object.keys(rosters);
+  if(!names.length) return '<div class="card"><div class="dim" style="padding:20px">No unit rosters.</div></div>';
+
+  return names.map(unitName => {
+    const r = rosters[unitName];
+    return `<div class="card" style="margin-bottom:16px">
+      <div class="card-title">${esc(unitName)} — Roster</div>
+      ${r.description ? `<p class="dim" style="margin-bottom:12px">${esc(r.description)}</p>` : ''}
+      ${(r.sections||[]).map(sec => `
+        <div style="margin-bottom:14px">
+          <div style="color:var(--gold);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">${esc(sec.section)}</div>
+          <div class="tbl-wrap"><table>
+            <thead><tr><th>Name</th><th>Weaponry</th><th>Qty</th><th>Equipment</th></tr></thead>
+            <tbody>${(sec.members||[]).map(m=>`<tr>
+              <td>${esc(m.name)}</td>
+              <td><span class="tag tag-grey">${esc(m.weaponry)}</span></td>
+              <td class="td-num">${m.qty}</td>
+              <td class="dim">${esc(m.equipment)||'—'}</td>
+            </tr>`).join('')}</tbody>
+          </table></div>
+        </div>`).join('')}
+    </div>`;
+  }).join('');
+}
+
+function renderDroidDesignsTab(p) {
+  const droids = p.droids || [];
+  if(!droids.length) return '<div class="card"><div class="dim" style="padding:20px">No droid designs.</div></div>';
+
+  return `<div class="card">
+    <div class="card-title">Droid Designs &amp; Schematics</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Name</th><th>Unique</th><th class="td-num">Material Cost</th><th class="td-num">Market Cost</th><th>Role</th><th>Size</th><th>Weaponry</th><th>Description</th><th>Source</th></tr></thead>
+      <tbody>${droids.map(d=>`<tr>
+        <td class="gold">${esc(d.name)}</td>
+        <td>${d.unique?'<span class="tag tag-gold">Unique</span>':'<span class="tag tag-grey">No</span>'}</td>
+        <td class="td-num">${fmtC(d.materialCost)}</td>
+        <td class="td-num">${fmtC(d.marketCost)}</td>
+        <td><span class="tag tag-blue">${esc(d.role)}</span></td>
+        <td class="dim">${esc(d.size)}</td>
+        <td>${esc(d.weaponry)}</td>
+        <td class="dim" style="max-width:280px">${esc(d.description)}</td>
+        <td class="dim">${esc(d.source)}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+  </div>`;
+}
+
+// ============================================================
+// DEPLOY MODAL
+// ============================================================
+let _depEdits = [];
+let _depListKey = '';
+let _depItemId = '';
+let _depPid = null;
+let _depSearch = {};
+let _depDdOpen = -1;
+
+function showDeployModal(listKey, itemId, pid) {
+  _depPid = pid || currentPlayer;
+  const p = STATE.players[_depPid];
+  const item = p[listKey].find(x=>x.id===itemId);
+  if(!item) return;
+  _depListKey = listKey;
+  _depItemId = itemId;
+  _depSearch = {};
+  _depDdOpen = -1;
+  _depEdits = (item.deployments||[]).map(d=>({location:d.location||'',note:d.note||'',qty:Number(d.qty)||0}));
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.id = 'dep-modal-overlay';
+  document.body.appendChild(modal);
+  _renderDepModal();
+}
+
+function _depHdr() {
+  const p = STATE.players[_depPid||currentPlayer];
+  const item = p&&p[_depListKey]&&p[_depListKey].find(x=>x.id===_depItemId);
+  if(!item) return '';
+  const totalDep = _depEdits.reduce((s,d)=>s+(Number(d.qty)||0),0);
+  const undep = Math.max(0,item.quantity-totalDep);
+  const over = totalDep>item.quantity;
+  return `Total: <strong>${item.quantity}</strong> &nbsp;·&nbsp; Deployed: <strong style="color:${over?'var(--red2)':'var(--green)'}">${totalDep}</strong> &nbsp;·&nbsp; Undeployed: <strong>${undep}</strong>${over?' <span style="color:var(--red2)">⚠ Exceeds total!</span>':''}`;
+}
+
+function _renderLocOptions(i, text) {
+  const p = STATE.players[_depPid||currentPlayer];
+  if(!p) return '';
+  const playerLocs = getPlayerLocations(p);
+  const structs = (p.structures||[]).filter(s=>s.name&&s.name.trim());
+  const q = (text||'').toLowerCase().trim();
+  const filtP = q ? PLANETS.filter(l=>l.toLowerCase().includes(q)) : PLANETS;
+  const filtS = q ? structs.filter(s=>s.name.toLowerCase().includes(q)||((s.location||'').toLowerCase().includes(q))) : structs;
+  const filtU = q ? playerLocs.filter(l=>l.toLowerCase().includes(q)) : playerLocs;
+  let html = '';
+  if(filtP.length) {
+    html += `<div class="loc-sec">Planets</div>`;
+    html += filtP.map(l=>`<div class="loc-opt" onclick="event.stopPropagation();_depSelectLoc(${i},'${l.replace(/'/g,"\\'")}')">${esc(l)}</div>`).join('');
+  }
+  if(filtS.length) {
+    html += `<div class="loc-sec">Structures</div>`;
+    html += filtS.map(s=>`<div class="loc-opt" onclick="event.stopPropagation();_depSelectLoc(${i},'${s.name.replace(/'/g,"\\'")}')" style="display:flex;justify-content:space-between;gap:8px"><span>🏛 ${esc(s.name)}</span><span class="dim" style="font-size:11px">${esc(s.location||'?')}</span></div>`).join('');
+  }
+  if(filtU.length) {
+    html += `<div class="loc-sec">Other Locations</div>`;
+    html += filtU.map(l=>`<div class="loc-opt" onclick="event.stopPropagation();_depSelectLoc(${i},'${l.replace(/'/g,"\\'")}')">${esc(l)}</div>`).join('');
+  }
+  const allLocs = [...PLANETS,...structs.map(s=>s.name),...playerLocs];
+  const exactExists = allLocs.some(l=>l.toLowerCase()===q);
+  if(text&&!exactExists) {
+    html += `<div class="loc-opt loc-create" onclick="event.stopPropagation();_depSelectLoc(${i},'${text.replace(/'/g,"\\'").replace(/"/g,'\\"')}')">+ Create &ldquo;${esc(text)}&rdquo;</div>`;
+  }
+  if(!html) html = `<div class="loc-opt" style="color:var(--text2);cursor:default">No locations found</div>`;
+  return html;
+}
+
+function _renderDepRow(d, i) {
+  return `<div class="dep-row" data-idx="${i}" style="display:flex;gap:8px;margin-bottom:10px;align-items:flex-start;flex-wrap:wrap">
+    <input type="number" value="${d.qty||0}" min="0" placeholder="Qty"
+           style="width:64px;flex-shrink:0;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:5px 8px;font-size:13px;font-family:inherit"
+           oninput="_depEdits[${i}].qty=Math.max(0,parseInt(this.value)||0);document.getElementById('dep-hdr').innerHTML=_depHdr()">
+    <div class="loc-selector" style="flex:2;min-width:140px">
+      ${d.location
+        ? `<div class="loc-chip">📍 ${esc(d.location)} <span class="lx" onclick="event.stopPropagation();_depClearLoc(${i})">✕</span></div>`
+        : `<input type="text" class="loc-search-inp" id="loc-inp-${i}"
+                  value="${esc(_depSearch[i]||'')}" placeholder="Search location…" autocomplete="off"
+                  oninput="_depFilter(${i},this.value)" onfocus="_depOpenDd(${i})"
+                  onclick="event.stopPropagation()">
+           <div class="loc-dd" id="loc-dd-${i}">${_depDdOpen===i?_renderLocOptions(i,_depSearch[i]||''):''}</div>`
+      }
+    </div>
+    <input type="text" value="${esc(d.note||'')}" placeholder="Location note…"
+           style="flex:2;min-width:100px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:5px 8px;font-size:13px;font-family:inherit"
+           oninput="_depEdits[${i}].note=this.value">
+    <button class="btn btn-red btn-sm" style="flex-shrink:0" onclick="_depRemoveRow(${i})">✕</button>
+  </div>`;
+}
+
+function _renderDepModal() {
+  const p = STATE.players[_depPid||currentPlayer];
+  const item = p[_depListKey].find(x=>x.id===_depItemId);
+  if(!item) return;
+  const overlay = document.getElementById('dep-modal-overlay');
+  if(!overlay) return;
+  overlay.innerHTML = `<div class="modal" style="max-width:580px" onclick="_depCloseDdOnOutside(event)">
+    <h2>Reposition: ${esc(item.name)}</h2>
+    <p class="dim" style="margin-bottom:14px" id="dep-hdr">${_depHdr()}</p>
+    <div style="margin-bottom:8px;font-size:12px;color:var(--text2);text-transform:uppercase;letter-spacing:1px">Deployment Locations</div>
+    <div id="dep-rows">${_depEdits.map((d,i)=>_renderDepRow(d,i)).join('')}</div>
+    <button class="btn btn-ghost btn-sm" onclick="_depAddRow()" style="margin-bottom:14px">+ Add Location</button>
+    <div class="form-row">
+      <label>General Notes</label>
+      <input type="text" id="dep-misc" value="${esc(item.misc||'')}" placeholder="Any additional notes">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="document.getElementById('dep-modal-overlay').remove()">Cancel</button>
+      <button class="btn btn-gold" onclick="_saveDepModal()">Save</button>
+    </div>
+  </div>`;
+}
+
+function _depOpenDd(i) {
+  _depDdOpen = i;
+  const dd = document.getElementById('loc-dd-'+i);
+  if(dd) dd.innerHTML = _renderLocOptions(i, _depSearch[i]||'');
+}
+function _depFilter(i, text) {
+  _depSearch[i] = text;
+  _depDdOpen = i;
+  const dd = document.getElementById('loc-dd-'+i);
+  if(dd) dd.innerHTML = _renderLocOptions(i, text);
+}
+function _depCloseDdOnOutside(e) {
+  if(!e.target.closest('.loc-selector')) {
+    _depDdOpen = -1;
+    document.querySelectorAll('.loc-dd').forEach(d=>d.innerHTML='');
+  }
+}
+function _depSelectLoc(i, loc) {
+  _depEdits[i].location = loc;
+  _depSearch[i] = '';
+  _depDdOpen = -1;
+  // Swap just this row in place
+  const row = document.querySelector(`.dep-row[data-idx="${i}"]`);
+  if(row) { const tmp = document.createElement('div'); tmp.innerHTML = _renderDepRow(_depEdits[i],i); row.replaceWith(tmp.firstElementChild); }
+}
+function _depClearLoc(i) {
+  _depEdits[i].location = '';
+  _depSearch[i] = '';
+  const row = document.querySelector(`.dep-row[data-idx="${i}"]`);
+  if(row) { const tmp = document.createElement('div'); tmp.innerHTML = _renderDepRow(_depEdits[i],i); row.replaceWith(tmp.firstElementChild); }
+  setTimeout(()=>{ const inp = document.getElementById('loc-inp-'+i); if(inp){inp.focus();_depOpenDd(i);} },10);
+}
+function _depAddRow() { _depEdits.push({location:'',note:'',qty:0}); _renderDepModal(); setTimeout(()=>{ const inp = document.getElementById('loc-inp-'+(_depEdits.length-1)); if(inp)inp.focus(); },10); }
+function _depRemoveRow(i) { _depEdits.splice(i,1); _renderDepModal(); }
+
+function _saveDepModal() {
+  const p = STATE.players[_depPid||currentPlayer];
+  const item = p[_depListKey].find(x=>x.id===_depItemId);
+  if(!item) return;
+  const totalDep = _depEdits.reduce((s,d)=>s+(Number(d.qty)||0),0);
+  if(totalDep>item.quantity){ notify('Deployed ('+totalDep+') exceeds quantity ('+item.quantity+')',true); return; }
+  item.deployments = _depEdits.filter(d=>d.qty>0||d.location).map(d=>({location:d.location||'',qty:Number(d.qty)||0,note:d.note||''}));
+  item.undeployed = item.quantity - totalDep;
+  item.misc = document.getElementById('dep-misc').value;
+  document.getElementById('dep-modal-overlay').remove();
+  saveState();
+  notify('Repositioned: '+item.name);
+  render();
+}
+
+// ============================================================
+// FINANCE
+// ============================================================
+function renderFinance() {
+  const p = STATE.players[currentPlayer];
+  if(!p) return '';
+  const bal = calcBalance(p);
+  const net = calcNet(p);
+  const proj = bal + net;
+
+  const incomeRows = (p.income||[]).map(r => `<tr>
+    <td>${esc(r.name)}</td>
+    <td class="td-num dim">${r.quantity}</td>
+    <td class="td-num pos">${r.income>0?fmtC(r.income):''}</td>
+    <td class="td-num neg">${r.upkeep>0?CREDIT_SVG+'('+fmt(r.upkeep)+')':''}</td>
+    <td class="td-num dim">${fmtCredits(r.net)}</td>
+    <td class="td-num">${fmtCredits(r.totalNet)}</td>
+  </tr>`).join('');
+
+  const prodRows = (p.production||[]).map(r => `<tr>
+    <td>${esc(r.name)}</td>
+    <td class="dim">${r.quantity}</td>
+    <td class="dim">${esc(r.cycle)}</td>
+    <td class="dim">${esc(r.origin)}</td>
+    <td class="td-num gold">${fmtC(r.estimatedValue)}</td>
+    <td class="td-num pos">${fmtC(r.totalValue)}</td>
+  </tr>`).join('');
+
+  const popRows = (p.populations||[]).map(row => `<tr>
+    <td class="gold">${esc(row.name)}</td>
+    <td>${fmt(row.adultPop)}</td>
+    <td><span class="loyalty-${row.loyalty?row.loyalty.toLowerCase():''}">${esc(row.loyalty)}</span></td>
+    <td class="td-num">${fmtC(row.gdpPerCapita)}</td>
+    <td class="td-num">${fmtC(row.totalGdp)}</td>
+    <td class="td-num pos">${fmtC(row.taxes)}</td>
+    <td class="dim">${esc(row.additionalInfo)}</td>
+  </tr>`).join('');
+
+  return `
+  <div class="grid3" style="margin-bottom:16px">
+    <div class="stat-box"><div class="label">Current Balance</div><div class="value ${bal<0?'neg':''}">${fmtC(bal)}</div></div>
+    <div class="stat-box"><div class="label">Net per Cycle</div><div class="value ${net<0?'neg':'pos'}">${net>=0?'+':'-'}${CREDIT_SVG}${fmt(Math.abs(net))}</div></div>
+    <div class="stat-box"><div class="label">Projected Balance</div><div class="value ${proj<0?'neg':''}">${fmtC(proj)}</div></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Income &amp; Upkeep Breakdown</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Source</th><th class="td-num">Qty</th><th class="td-num">Income</th><th class="td-num">Upkeep</th><th class="td-num">Net (each)</th><th class="td-num">Total Net</th></tr></thead>
+      <tbody>
+        ${incomeRows||'<tr class="empty-row"><td colspan="6">No income entries</td></tr>'}
+        <tr style="background:var(--bg3)">
+          <td colspan="5" style="text-align:right;font-weight:700;color:var(--text2)">TOTAL NET</td>
+          <td class="td-num" style="font-weight:700;font-size:15px">${fmtCredits(net)}</td>
+        </tr>
+      </tbody>
+    </table></div>
+  </div>
+  ${p.production&&p.production.length?`<div class="card">
+    <div class="card-title">Production</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Name</th><th>Qty</th><th>Cycle</th><th>Origin</th><th class="td-num">Est. Value</th><th class="td-num">Total Value</th></tr></thead>
+      <tbody>${prodRows}</tbody>
+    </table></div>
+  </div>`:''}
+  ${p.populations&&p.populations.length?`<div class="card">
+    <div class="card-title">Population Centers</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Name</th><th>Adult Population</th><th>Loyalty</th><th class="td-num">GDP per Capita</th><th class="td-num">Total GDP</th><th class="td-num">Taxes</th><th>Notes</th></tr></thead>
+      <tbody>${popRows}</tbody>
+    </table></div>
+  </div>`:''}
+  `;
+}
+
+// ============================================================
+// SHOP
+// ============================================================
+let shopCat = 'All';
+function renderShop() {
+  const p = STATE.players[currentPlayer];
+  const cats = ['All', ...new Set((STATE.shopItems||[]).map(i=>i.category))];
+  const items = (STATE.shopItems||[]).filter(i=>shopCat==='All'||i.category===shopCat);
+  const myRequests = (STATE.purchaseRequests||[]).filter(r=>r.playerId===currentPlayer).slice(-10).reverse();
+
+  return `
+  <div class="grid2">
+    <div>
+      <div class="card">
+        <div class="card-title">Item Catalog</div>
+        <div class="tab-bar" style="flex-wrap:wrap;border-bottom:none;margin-bottom:12px">
+          ${cats.map(c=>`<div class="tab ${shopCat===c?'active':''}" onclick="shopCat='${c}';render()" style="font-size:12px;padding:5px 10px">${c}</div>`).join('')}
+        </div>
+        <div class="shop-grid">
+          ${items.map(item=>`<div class="shop-item-card">
+            <h4>${esc(item.name)}</h4>
+            <div class="price">${fmtC(item.price)}</div>
+            <p>${esc(item.description)}</p>
+            ${item.prerequisite?`<div style="margin-top:4px"><span class="tag tag-red" style="font-size:10px">Req: ${esc(item.prerequisite)}</span></div>`:''}
+            <div style="margin-top:8px">
+              <button class="btn btn-gold btn-sm" onclick="showPurchaseModal('${item.id}')">Request Purchase</button>
+            </div>
+          </div>`).join('')}
+          ${items.length===0?'<div class="dim">No items in this category.</div>':''}
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="stat-box" style="margin-bottom:16px">
+        <div class="label">Your Balance</div>
+        <div class="value">${fmtC(calcBalance(p))}</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Your Purchase Requests</div>
+        ${myRequests.length===0?'<div class="dim">No requests yet.</div>':''}
+        ${myRequests.map(r=>`<div style="padding:8px 0;border-bottom:1px solid var(--border)">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <strong>${esc(r.itemName)}</strong>
+            <span class="tag ${r.status==='approved'?'tag-green':r.status==='denied'?'tag-red':'tag-gold'}">${r.status}</span>
+          </div>
+          <div class="dim" style="font-size:12px;margin-top:2px">${fmtC(r.price)} × ${r.quantity} = ${fmtC(r.price*r.quantity)}</div>
+          ${r.note?`<div class="dim" style="font-size:12px">${esc(r.note)}</div>`:''}
+          ${r.adminNote?`<div style="font-size:12px;color:var(--gold)"">Admin: ${esc(r.adminNote)}</div>`:''}
+        </div>`).join('')}
+      </div>
+    </div>
+  </div>`;
+}
+
+function showPurchaseModal(itemId) {
+  const item = STATE.shopItems.find(i=>i.id===itemId);
+  if(!item) return;
+  const p = STATE.players[currentPlayer];
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.innerHTML = `<div class="modal">
+    <h2>Request Purchase: ${esc(item.name)}</h2>
+    <p class="dim" style="margin-bottom:14px">${esc(item.description)}</p>
+    <div style="margin-bottom:12px"><span class="price" style="color:var(--red2);font-size:18px;font-weight:700">${fmtC(item.price)} each</span></div>
+    <div class="form-row">
+      <label>Quantity</label>
+      <input type="number" id="pur-qty" value="1" min="1" oninput="document.getElementById('pur-total').innerHTML=fmtC(${item.price}*(parseInt(this.value)||1))+' total'">
+    </div>
+    <div id="pur-total" style="color:var(--gold);margin-bottom:12px">${fmtC(item.price)} total</div>
+    <div class="form-row">
+      <label>Note to Admin (optional)</label>
+      <textarea id="pur-note" placeholder="Any context for this purchase..."></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+      <button class="btn btn-gold" onclick="submitPurchase('${itemId}')">Submit Request</button>
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+}
+
+function submitPurchase(itemId) {
+  const item = STATE.shopItems.find(i=>i.id===itemId);
+  if(!item) return;
+  const qty = parseInt(document.getElementById('pur-qty').value)||1;
+  const note = document.getElementById('pur-note').value;
+  const req = {
+    id: newId(),
+    playerId: currentPlayer,
+    playerName: STATE.players[currentPlayer].displayName,
+    itemId, itemName: item.name,
+    price: item.price, quantity: qty,
+    totalCost: item.price * qty,
+    note, adminNote: '',
+    status: 'pending',
+    date: new Date().toISOString()
+  };
+  STATE.purchaseRequests = STATE.purchaseRequests || [];
+  STATE.purchaseRequests.push(req);
+  document.querySelector('.modal-overlay').remove();
+  saveState();
+  notify('Purchase request submitted!');
+  render();
+}
+
+// ============================================================
+// ADMIN LOGIN
+// ============================================================
+function showAdminLogin() {
+  if(isAdmin) { isAdmin=false; currentPlayer=null; currentView='login'; render(); return; }
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.innerHTML = `<div class="modal" style="min-width:300px">
+    <h2>Admin Login</h2>
+    <div class="form-row">
+      <label>Password</label>
+      <input type="password" id="admin-pw" placeholder="Enter admin password" onkeydown="if(event.key==='Enter')doAdminLogin()">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+      <button class="btn btn-red" onclick="doAdminLogin()">Login</button>
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+  setTimeout(()=>document.getElementById('admin-pw')?.focus(),50);
+}
+function doAdminLogin() {
+  const pw = document.getElementById('admin-pw').value;
+  if(pw === STATE.adminPassword) {
+    isAdmin = true; currentPlayer = null; currentView = 'admin-overview';
+    document.querySelector('.modal-overlay').remove();
+    render();
+  } else { notify('Incorrect password', true); }
+}
+
+// ============================================================
+// ADMIN OVERVIEW
+// ============================================================
+function renderAdminOverview() {
+  const players = Object.values(STATE.players);
+  const rows = players.map(p => {
+    const net = calcNet(p);
+    const bal = calcBalance(p);
+    return `<tr>
+      <td class="gold" style="cursor:pointer" onclick="adminEditPlayer('${p.id}')">${esc(p.displayName)}</td>
+      <td>${esc(p.character.name)}</td>
+      <td><span class="tag tag-red">${esc(p.character.rank)}</span></td>
+      <td class="td-num">${fmtC(bal)}</td>
+      <td class="td-num ${net>=0?'pos':'neg'}">${net>=0?'+':'-'}${CREDIT_SVG}${fmt(Math.abs(net))}</td>
+      <td class="td-num ${(bal+net)>=0?'pos':'neg'}">${fmtC(bal+net)}</td>
+      <td class="td-num dim">${(p.formations||[]).reduce((s,f)=>s+totalDeployed(f),0)}</td>
+      <td>
+        <button class="btn btn-ghost btn-sm" onclick="adminEditPlayer('${p.id}')">Edit</button>
+        <button class="btn btn-gold btn-sm" onclick="adminAdjustFunds('${p.id}')">Adjust Funds</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  return `<div class="card">
+    <div class="card-title">All Players Overview</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Player</th><th>Character</th><th>Rank</th><th class="td-num">Balance</th><th class="td-num">Net/Cycle</th><th class="td-num">Projected</th><th class="td-num">Deployed</th><th>Actions</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+  </div>
+  <div class="grid2">
+    <div class="card">
+      <div class="card-title">Pending Requests</div>
+      ${(STATE.purchaseRequests||[]).filter(r=>r.status==='pending').slice(0,5).map(r=>`<div style="padding:6px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+        <span>${esc(r.playerName)}: <strong>${esc(r.itemName)}</strong> ×${r.quantity}</span>
+        <span class="gold">${fmtC(r.totalCost)}</span>
+      </div>`).join('')||'<div class="dim">No pending requests</div>'}
+      ${pendingCount()>0?`<div style="margin-top:8px"><button class="btn btn-red btn-sm" onclick="navigate('admin-requests')">View All (${pendingCount()})</button></div>`:''}
+    </div>
+    <div class="card">
+      <div class="card-title">Quick Actions</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button class="btn btn-ghost" onclick="navigate('admin-players')">Manage Players &amp; Edit Sheets</button>
+        <button class="btn btn-ghost" onclick="navigate('admin-shop')">Manage Shop Items</button>
+        <button class="btn btn-ghost" onclick="navigate('admin-requests')">Review Purchase Requests</button>
+        <button class="btn btn-ghost" onclick="exportData()">Export Data (JSON)</button>
+        <button class="btn btn-ghost" onclick="importData()">Import Data (JSON)</button>
+        <button class="btn btn-ghost" onclick="changeMasterPassword()">Change Master Password</button>
+        <button class="btn btn-ghost" onclick="managePlayerPasswords()">Manage Player Passwords</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ============================================================
+// ADMIN PLAYERS
+// ============================================================
+let adminPlayerSelected = null;
+let adminPlayerTab = 'character';
+function renderAdminPlayers() {
+  const players = Object.values(STATE.players);
+  const sidebar = `<div style="display:flex;flex-direction:column;gap:4px">
+    ${players.map(p=>`<div style="padding:8px 12px;border-radius:4px;cursor:pointer;background:${adminPlayerSelected===p.id?'var(--bg3)':'transparent'};border:1px solid ${adminPlayerSelected===p.id?'var(--gold)':'transparent'}" onclick="adminPlayerSelected='${p.id}';render()">
+      <div style="color:${adminPlayerSelected===p.id?'var(--gold)':'var(--text)'}">  ${esc(p.displayName)}</div>
+      <div class="dim" style="font-size:11px">${esc(p.character.name)}</div>
+    </div>`).join('')}
+    <button class="btn btn-green btn-sm" style="margin-top:8px" onclick="addNewPlayer()">+ Add Player</button>
+  </div>`;
+
+  let content = '<div class="dim" style="padding:20px">Select a player to edit.</div>';
+  if(adminPlayerSelected && STATE.players[adminPlayerSelected]) {
+    const p = STATE.players[adminPlayerSelected];
+    const tabList = ['character','finances','formations','assets','structures','misc','income','populations'];
+    const tabLabels = { character:'Character', finances:'Finances', formations:'Formations', assets:'Assets', structures:'Structures', misc:'Misc', income:'Income', populations:'Populations' };
+    content = `
+      <div class="tab-bar" style="flex-wrap:wrap">
+        ${tabList.map(t=>`<div class="tab ${adminPlayerTab===t?'active':''}" onclick="adminPlayerTab='${t}';render()" style="font-size:12px;padding:5px 10px">${tabLabels[t]}</div>`).join('')}
+      </div>
+      ${adminPlayerTab==='character'?renderAdminCharacterEdit(p):''}
+      ${adminPlayerTab==='finances'?renderAdminFinancesEdit(p):''}
+      ${adminPlayerTab==='formations'?renderAdminListEdit(p,'formations','Formations',['name','quantity','strength','category','description','misc']):''}
+      ${adminPlayerTab==='assets'?renderAdminListEdit(p,'assets','Assets',['name','quantity','category','description','misc']):''}
+      ${adminPlayerTab==='structures'?renderAdminListEdit(p,'structures','Structures',['name','quantity','category','description','location','locationNote','misc']):''}
+      ${adminPlayerTab==='misc'?renderAdminListEdit(p,'miscItems','Misc Items',['name','quantity','category','description','misc']):''}
+      ${adminPlayerTab==='income'?renderAdminIncomeEdit(p):''}
+      ${adminPlayerTab==='populations'?renderAdminPopEdit(p):''}
+    `;
+  }
+
+  return `<div class="grid2" style="grid-template-columns:220px 1fr;gap:16px">
+    <div class="card" style="height:fit-content">${sidebar}</div>
+    <div>${content}</div>
+  </div>`;
+}
+
+function renderAdminCharacterEdit(p) {
+  const c = p.character;
+  return `<div class="card">
+    <div class="card-title">Edit Character: ${esc(p.displayName)}
+      <button class="btn btn-red btn-sm" onclick="if(confirm('Delete player?'))deletePlayer('${p.id}')">Delete Player</button>
+    </div>
+    <div class="grid2">
+      ${['name','rank','age','species','ideology','archetype','lightsaberForm'].map(f=>`<div class="form-row">
+        <label>${f.charAt(0).toUpperCase()+f.slice(1)}</label>
+        <input type="text" id="ce-${f}" value="${esc(c[f]||'')}">
+      </div>`).join('')}
+      <div class="form-row">
+        <label>Equipment (one per line)</label>
+        <textarea id="ce-equipment" rows="3">${esc(Array.isArray(c.equipment)?c.equipment.join('\n'):(c.equipment||''))}</textarea>
+      </div>
+    </div>
+    <div class="form-row">
+      <label>Fighting Style</label>
+      <textarea id="ce-fightingStyle">${esc(c.fightingStyle||'')}</textarea>
+    </div>
+    <div class="form-row">
+      <label>Personality</label>
+      <textarea id="ce-personality">${esc(c.personality||'')}</textarea>
+    </div>
+    <div class="form-row">
+      <label>Background</label>
+      <textarea id="ce-background" rows="4">${esc(c.background||'')}</textarea>
+    </div>
+    <div class="form-row">
+      <label>Notes</label>
+      <textarea id="ce-notes">${esc(c.notes||'')}</textarea>
+    </div>
+    <div class="form-row">
+      <label>Character Image</label>
+      <div id="img-paste-zone-${p.id}" class="img-paste-zone" tabindex="0"
+           onclick="this.focus()"
+           onpaste="handleCharImagePaste(event,'${p.id}')">
+        ${p.character.charImage
+          ? `<img src="${p.character.charImage}" style="max-height:220px;max-width:100%;border-radius:4px;display:block">
+             <button class="btn btn-red btn-sm" style="margin-top:8px" onclick="event.stopPropagation();clearCharImage('${p.id}')">Remove Image</button>`
+          : `<div class="paste-hint">🖼 Click here, then Ctrl+V to paste an image</div>`}
+      </div>
+    </div>
+    <div class="modal-actions" style="border-top:none;padding-top:0;justify-content:flex-start">
+      <button class="btn btn-gold" onclick="saveAdminCharacter('${p.id}')">Save Character</button>
+    </div>
+  </div>`;
+}
+
+function handleCharImagePaste(e, pid) {
+  e.preventDefault();
+  const items = e.clipboardData && e.clipboardData.items;
+  if (!items) return;
+  for (let i = 0; i < items.length; i++) {
+    if (items[i].type.startsWith('image/')) {
+      const blob = items[i].getAsFile();
+      const reader = new FileReader();
+      reader.onload = function(ev) {
+        STATE.players[pid].character.charImage = ev.target.result;
+        saveState();
+        notify('Character image saved.');
+        render();
+      };
+      reader.readAsDataURL(blob);
+      return;
+    }
+  }
+  notify('No image found in clipboard.');
+}
+
+function clearCharImage(pid) {
+  STATE.players[pid].character.charImage = '';
+  saveState();
+  notify('Image removed.');
+  render();
+}
+
+function saveAdminCharacter(pid) {
+  const p = STATE.players[pid];
+  if(!p) return;
+  const fields = ['name','rank','age','species','ideology','archetype','lightsaberForm','fightingStyle','personality','background','notes'];
+  fields.forEach(f => { const el = document.getElementById('ce-'+f); if(el) p.character[f] = el.value; });
+  const equip = document.getElementById('ce-equipment');
+  if(equip) p.character.equipment = equip.value.split('\n').map(s=>s.trim()).filter(Boolean);
+  saveState(); notify('Character saved.'); render();
+}
+
+function renderAdminFinancesEdit(p) {
+  return `<div class="card">
+    <div class="card-title">Edit Finances: ${esc(p.displayName)}</div>
+    <div class="grid2">
+      <div class="form-row">
+        <label>Current Balance</label>
+        <input type="number" id="fin-balance" value="${p.finances.balance||0}">
+      </div>
+    </div>
+    <div class="modal-actions" style="border-top:none;padding-top:0;justify-content:flex-start">
+      <button class="btn btn-gold" onclick="saveAdminFinances('${p.id}')">Save Finances</button>
+    </div>
+  </div>`;
+}
+function saveAdminFinances(pid) {
+  const p = STATE.players[pid];
+  p.finances.balance = parseFloat(document.getElementById('fin-balance').value)||0;
+  saveState(); notify('Finances saved.'); render();
+}
+
+const MOVABLE_LISTS = { formations:'Formations', assets:'Assets', miscItems:'Misc Items', structures:'Structures' };
+function renderAdminListEdit(p, listKey, title, fields) {
+  const list = p[listKey]||[];
+  const colWidth = { name:'150px', description:'220px', category:'100px', quantity:'60px', deployed:'70px', undeployed:'80px', location:'120px', misc:'100px', attachedForces:'120px' };
+  const canMove = listKey in MOVABLE_LISTS;
+  const moveOpts = canMove ? Object.entries(MOVABLE_LISTS).filter(([k])=>k!==listKey).map(([k,v])=>`<option value="${k}">${v}</option>`).join('') : '';
+  return `<div class="card">
+    <div class="card-title">${title} (${list.length})
+      <button class="btn btn-green btn-sm" onclick="adminAddRow('${p.id}','${listKey}','${JSON.stringify(fields).replace(/'/g,'&apos;')}')">+ Add Row</button>
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr>${fields.map(f=>`<th style="min-width:${colWidth[f]||'80px'}">${f}</th>`).join('')}<th>Actions</th></tr></thead>
+      <tbody>
+        ${list.map((row,idx)=>`<tr>
+          ${fields.map(f=>`<td><input type="${['quantity','deployed','undeployed'].includes(f)?'number':'text'}" value="${esc(row[f]||'')}" style="min-width:${colWidth[f]?'calc('+colWidth[f]+' - 20px)':'80px'}" onchange="adminUpdateCell('${p.id}','${listKey}',${idx},'${f}',this.value)"></td>`).join('')}
+          <td style="white-space:nowrap">
+            ${canMove?`<select style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:4px;padding:2px 4px;font-size:11px;font-family:inherit;margin-right:4px" onchange="if(this.value){adminMoveRow('${p.id}','${listKey}',${idx},this.value);this.value=''}"><option value="">↔ Move…</option>${moveOpts}</select>`:''}
+            <button class="btn btn-red btn-sm" onclick="adminDeleteRow('${p.id}','${listKey}',${idx})">✕</button>
+          </td>
+        </tr>`).join('')}
+        ${list.length===0?`<tr class="empty-row"><td colspan="${fields.length+1}">No rows — use + Add Row above.</td></tr>`:''}
+      </tbody>
+    </table></div>
+  </div>`;
+}
+
+function adminMoveRow(pid, fromList, idx, toList) {
+  const p = STATE.players[pid];
+  if(!p||!p[fromList]) return;
+  const item = p[fromList][idx];
+  if(!item) return;
+  const moved = JSON.parse(JSON.stringify(item));
+  moved.id = newId();
+  const deployable = ['formations','assets','miscItems'];
+  const fromDep = deployable.includes(fromList);
+  const toDep = deployable.includes(toList);
+  if(fromDep && !toDep) {
+    // deployable → structure: use first deployment location, drop deployment fields
+    const first = (moved.deployments||[])[0];
+    moved.location = first ? first.location : '';
+    delete moved.deployments;
+    delete moved.undeployed;
+  } else if(!fromDep && toDep) {
+    // structure → deployable: convert location to a single deployment
+    const loc = moved.location||'';
+    moved.deployments = loc ? [{location:loc, qty:Number(moved.quantity)||1, note:''}] : [];
+    moved.undeployed = 0;
+    delete moved.location;
+  }
+  p[fromList].splice(idx, 1);
+  p[toList] = p[toList]||[];
+  p[toList].push(moved);
+  saveState();
+  notify(`"${moved.name}" moved to ${MOVABLE_LISTS[toList]}`);
+  render();
+}
+
+function adminUpdateCell(pid, listKey, idx, field, value) {
+  const p = STATE.players[pid];
+  if(!p||!p[listKey]) return;
+  const item = p[listKey][idx];
+  if(!item) return;
+  item[field] = ['quantity','deployed','undeployed','strength'].includes(field) ? (parseFloat(value)||0) : value;
+  saveState();
+}
+function adminDeleteRow(pid, listKey, idx) {
+  if(!confirm('Delete this row?')) return;
+  STATE.players[pid][listKey].splice(idx,1);
+  saveState(); notify('Row deleted.'); render();
+}
+function adminAddRow(pid, listKey, fieldsJSON) {
+  const fields = JSON.parse(fieldsJSON.replace(/&apos;/g,"'"));
+  const newRow = { id: newId() };
+  fields.forEach(f => newRow[f] = ['quantity'].includes(f)?0:'');
+  if(['formations','assets','miscItems'].includes(listKey)) {
+    newRow.deployments = [];
+    newRow.undeployed = 0;
+  }
+  STATE.players[pid][listKey] = STATE.players[pid][listKey]||[];
+  STATE.players[pid][listKey].push(newRow);
+  saveState(); render();
+}
+
+function renderAdminIncomeEdit(p) {
+  const list = p.income||[];
+  return `<div class="card">
+    <div class="card-title">Income / Upkeep (${list.length})
+      <button class="btn btn-green btn-sm" onclick="adminAddIncomeRow('${p.id}')">+ Add Row</button>
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Name</th><th>Qty</th><th>Income</th><th>Upkeep</th><th>Net</th><th>Total Net</th><th></th></tr></thead>
+      <tbody>
+        ${list.map((r,idx)=>`<tr>
+          <td><input type="text" value="${esc(r.name)}" style="min-width:140px" onchange="adminUpdateCell('${p.id}','income',${idx},'name',this.value)"></td>
+          <td><input type="number" value="${r.quantity}" style="width:60px" onchange="adminUpdateIncomeRow('${p.id}',${idx},'quantity',this.value)"></td>
+          <td><input type="number" value="${r.income}" style="width:90px" onchange="adminUpdateIncomeRow('${p.id}',${idx},'income',this.value)"></td>
+          <td><input type="number" value="${r.upkeep}" style="width:90px" onchange="adminUpdateIncomeRow('${p.id}',${idx},'upkeep',this.value)"></td>
+          <td class="td-num dim">${fmtCredits(r.net)}</td>
+          <td class="td-num">${fmtCredits(r.totalNet)}</td>
+          <td><button class="btn btn-red btn-sm" onclick="adminDeleteRow('${p.id}','income',${idx})">✕</button></td>
+        </tr>`).join('')}
+        ${list.length===0?'<tr class="empty-row"><td colspan="7">No rows.</td></tr>':''}
+      </tbody>
+    </table></div>
+  </div>`;
+}
+function adminAddIncomeRow(pid) {
+  const row = { id:newId(), name:'New Source', quantity:1, income:0, upkeep:0, net:0, totalNet:0 };
+  STATE.players[pid].income = STATE.players[pid].income||[];
+  STATE.players[pid].income.push(row);
+  saveState(); render();
+}
+function adminUpdateIncomeRow(pid, idx, field, value) {
+  const r = STATE.players[pid].income[idx];
+  if(!r) return;
+  r[field] = parseFloat(value)||0;
+  r.net = r.income - r.upkeep;
+  r.totalNet = r.net * r.quantity;
+  saveState(); render();
+}
+
+function renderAdminPopEdit(p) {
+  const list = p.populations||[];
+  const fields = ['name','adultPop','loyalty','gdpPerCapita','totalGdp','taxes','additionalInfo'];
+  return `<div class="card">
+    <div class="card-title">Populations (${list.length})
+      <button class="btn btn-green btn-sm" onclick="adminAddPopRow('${p.id}')">+ Add</button>
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr>${fields.map(f=>`<th>${f}</th>`).join('')}<th></th></tr></thead>
+      <tbody>
+        ${list.map((row,idx)=>`<tr>
+          ${fields.map(f=>`<td><input type="${['adultPop','gdpPerCapita','totalGdp','taxes'].includes(f)?'number':'text'}" value="${esc(row[f]||'')}" style="min-width:80px" onchange="adminUpdateCell('${p.id}','populations',${idx},'${f}',this.value)"></td>`).join('')}
+          <td><button class="btn btn-red btn-sm" onclick="adminDeleteRow('${p.id}','populations',${idx})">✕</button></td>
+        </tr>`).join('')}
+        ${list.length===0?`<tr class="empty-row"><td colspan="${fields.length+1}">No populations.</td></tr>`:''}
+      </tbody>
+    </table></div>
+  </div>`;
+}
+function adminAddPopRow(pid) {
+  STATE.players[pid].populations = STATE.players[pid].populations||[];
+  STATE.players[pid].populations.push({ id:newId(), name:'New Territory', adultPop:0, loyalty:'Medium', gdpPerCapita:0, totalGdp:0, taxes:0, additionalInfo:'' });
+  saveState(); render();
+}
+
+// ============================================================
+// ADMIN SHOP
+// ============================================================
+function renderAdminShop() {
+  const items = STATE.shopItems||[];
+  return `<div class="card">
+    <div class="card-title">Shop Items (${items.length})
+      <button class="btn btn-green btn-sm" onclick="showAddShopItem()">+ Add Item</button>
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Name</th><th>Category</th><th class="td-num">Price</th><th>Description</th><th>Prereq</th><th>Actions</th></tr></thead>
+      <tbody>
+        ${items.map(item=>`<tr>
+          <td class="gold">${esc(item.name)}</td>
+          <td><span class="tag tag-grey">${esc(item.category)}</span></td>
+          <td class="td-num">${fmtC(item.price)}</td>
+          <td class="dim" style="max-width:220px">${esc(item.description)}</td>
+          <td class="dim">${esc(item.prerequisite)}</td>
+          <td>
+            <button class="btn btn-ghost btn-sm" onclick="showEditShopItem('${item.id}')">Edit</button>
+            <button class="btn btn-red btn-sm" onclick="deleteShopItem('${item.id}')">Delete</button>
+          </td>
+        </tr>`).join('')}
+      </tbody>
+    </table></div>
+  </div>`;
+}
+function showAddShopItem() { showShopItemModal(null); }
+function showEditShopItem(id) { showShopItemModal(id); }
+function showShopItemModal(id) {
+  const item = id ? STATE.shopItems.find(i=>i.id===id) : null;
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.innerHTML = `<div class="modal">
+    <h2>${item?'Edit':'Add'} Shop Item</h2>
+    <div class="form-row"><label>Name</label><input id="si-name" type="text" value="${esc(item?.name||'')}"></div>
+    <div class="form-row"><label>Category</label><input id="si-cat" type="text" value="${esc(item?.category||'')}" placeholder="e.g. Ground Units, Ships, Equipment"></div>
+    <div class="form-row"><label>Price (credits)</label><input id="si-price" type="number" value="${item?.price||0}"></div>
+    <div class="form-row"><label>Unit</label><input id="si-unit" type="text" value="${esc(item?.unit||'unit')}"></div>
+    <div class="form-row"><label>Description</label><textarea id="si-desc">${esc(item?.description||'')}</textarea></div>
+    <div class="form-row"><label>Prerequisite</label><input id="si-prereq" type="text" value="${esc(item?.prerequisite||'')}"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+      <button class="btn btn-gold" onclick="saveShopItem('${id||''}')">Save</button>
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+}
+function saveShopItem(id) {
+  const data = {
+    name: document.getElementById('si-name').value,
+    category: document.getElementById('si-cat').value,
+    price: parseFloat(document.getElementById('si-price').value)||0,
+    unit: document.getElementById('si-unit').value,
+    description: document.getElementById('si-desc').value,
+    prerequisite: document.getElementById('si-prereq').value
+  };
+  if(id) { const item = STATE.shopItems.find(i=>i.id===id); if(item) Object.assign(item, data); }
+  else { STATE.shopItems = STATE.shopItems||[]; STATE.shopItems.push({ id:newId(), ...data }); }
+  document.querySelector('.modal-overlay').remove();
+  saveState(); notify('Shop item saved.'); render();
+}
+function deleteShopItem(id) {
+  if(!confirm('Delete this shop item?')) return;
+  STATE.shopItems = STATE.shopItems.filter(i=>i.id!==id);
+  saveState(); notify('Deleted.'); render();
+}
+
+// ============================================================
+// ADMIN PURCHASE REQUESTS
+// ============================================================
+function renderAdminRequests() {
+  const requests = (STATE.purchaseRequests||[]).slice().reverse();
+  const rows = requests.map(r=>`<tr>
+    <td class="dim" style="font-size:11px">${new Date(r.date).toLocaleDateString()}</td>
+    <td class="gold">${esc(r.playerName)}</td>
+    <td>${esc(r.itemName)}</td>
+    <td class="td-num">${r.quantity}</td>
+    <td class="td-num">${fmtC(r.price)}</td>
+    <td class="td-num gold">${fmtC(r.totalCost)}</td>
+    <td class="dim">${esc(r.note)}</td>
+    <td><span class="tag ${r.status==='approved'?'tag-green':r.status==='denied'?'tag-red':'tag-gold'}">${r.status}</span></td>
+    <td>
+      ${r.status==='pending'?`
+        <button class="btn btn-green btn-sm" onclick="approveRequest('${r.id}')">Approve</button>
+        <button class="btn btn-red btn-sm" onclick="denyRequest('${r.id}')">Deny</button>
+      `:`<button class="btn btn-ghost btn-sm" onclick="addAdminNote('${r.id}')">Note</button>`}
+    </td>
+  </tr>`).join('');
+
+  return `<div class="card">
+    <div class="card-title">Purchase Requests</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Date</th><th>Player</th><th>Item</th><th>Qty</th><th class="td-num">Price</th><th class="td-num">Total</th><th>Note</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody>${rows||'<tr class="empty-row"><td colspan="9">No requests.</td></tr>'}</tbody>
+    </table></div>
+  </div>`;
+}
+function approveRequest(id) {
+  const req = STATE.purchaseRequests.find(r=>r.id===id);
+  if(!req) return;
+  const p = STATE.players[req.playerId];
+  if(!p) { notify('Player not found', true); return; }
+  if(p.finances.balance < req.totalCost) {
+    if(!confirm(`Player only has ${fmt(p.finances.balance)} credits. Approve anyway?`)) return;
+  }
+  req.status = 'approved';
+  p.finances.balance -= req.totalCost;
+  saveState(); notify(`Approved. ${fmt(req.totalCost)} deducted from ${p.displayName}.`); render();
+}
+function denyRequest(id) {
+  const req = STATE.purchaseRequests.find(r=>r.id===id);
+  if(!req) return;
+  req.status = 'denied';
+  saveState(); notify('Request denied.'); render();
+}
+function addAdminNote(id) {
+  const req = STATE.purchaseRequests.find(r=>r.id===id);
+  if(!req) return;
+  const note = prompt('Admin note:', req.adminNote||'');
+  if(note !== null) { req.adminNote = note; saveState(); render(); }
+}
+
+// ============================================================
+// ADMIN NOTES
+// ============================================================
+// ADMIN DEPLOYMENTS
+// ============================================================
+let _adminDepSel = null; // currently selected location key, e.g. 'planet::Dromund Kaas' or 'struct::Main Base::pid'
+
+function _getAllGenericLocs() {
+  const locs = new Set([...PLANETS, ...(STATE.customLocations||[])]);
+  // Also include any deployment locations not matching a structure name
+  const structNames = new Set();
+  Object.values(STATE.players).forEach(p=>(p.structures||[]).forEach(s=>{if(s.name)structNames.add(s.name);}));
+  Object.values(STATE.players).forEach(p=>{
+    ['formations','assets','miscItems'].forEach(k=>(p[k]||[]).forEach(item=>(item.deployments||[]).forEach(d=>{
+      if(d.location&&d.location.trim()&&!structNames.has(d.location.trim())) locs.add(d.location.trim());
+    })));
+  });
+  return [...locs].sort();
+}
+
+function _getAllStructLocs() {
+  const structs = [];
+  Object.values(STATE.players).forEach(p=>{
+    (p.structures||[]).forEach(s=>{
+      structs.push({ name:s.name, location:s.location||'', locationNote:s.locationNote||'', pid:p.id, playerName:p.displayName });
+    });
+  });
+  return structs.sort((a,b)=>a.name.localeCompare(b.name));
+}
+
+function _getForcesAt(locType, locName, pid) {
+  // locType: 'generic' or 'struct'
+  const forces = [];
+  Object.values(STATE.players).forEach(p=>{
+    ['formations','assets','miscItems'].forEach(k=>{
+      const type = k==='formations'?'Formation':k==='assets'?'Asset':'Misc';
+      (p[k]||[]).forEach(item=>{
+        (item.deployments||[]).forEach((d,depIdx)=>{
+          if(Number(d.qty)<=0) return;
+          const match = locType==='generic' ? d.location===locName : d.location===locName;
+          if(match) forces.push({
+            pid:p.id, playerName:p.displayName, listKey:k, itemId:item.id, depIdx,
+            name:item.name, type, qty:d.qty, strength:item.strength||'', note:d.note||'', location:d.location
+          });
+        });
+      });
+    });
+  });
+  return forces;
+}
+
+function _allLocOptions() {
+  const generic = _getAllGenericLocs();
+  const structs = _getAllStructLocs();
+  return [
+    ...generic.map(l=>`<option value="${esc(l)}">${esc(l)}</option>`),
+    ...structs.map(s=>`<option value="${esc(s.name)}">🏛 ${esc(s.name)}</option>`)
+  ].join('');
+}
+
+function adminMoveDep(pid, listKey, itemId, depIdx, newLoc) {
+  if(!newLoc) return;
+  const p = STATE.players[pid];
+  if(!p) return;
+  const item = (p[listKey]||[]).find(x=>x.id===itemId);
+  if(!item||!item.deployments[depIdx]) return;
+  const dep = item.deployments[depIdx];
+  if(dep.location===newLoc) return;
+  const existIdx = item.deployments.findIndex((d,i)=>i!==depIdx&&d.location===newLoc);
+  if(existIdx>=0) {
+    item.deployments[existIdx].qty += dep.qty;
+    item.deployments.splice(depIdx,1);
+  } else {
+    dep.location = newLoc;
+  }
+  saveState();
+  notify(`Moved to ${newLoc}`);
+  document.getElementById('app').innerHTML = renderAdminDeploy();
+}
+
+function adminAddCustomLoc() {
+  const inp = document.getElementById('new-generic-inp');
+  const val = inp&&inp.value.trim();
+  if(!val) return;
+  STATE.customLocations = STATE.customLocations||[];
+  if(!STATE.customLocations.includes(val)) STATE.customLocations.push(val);
+  saveState();
+  _adminDepSel = 'generic::'+val;
+  document.getElementById('app').innerHTML = renderAdminDeploy();
+}
+function adminRemoveCustomLoc(loc) {
+  STATE.customLocations = (STATE.customLocations||[]).filter(l=>l!==loc);
+  if(_adminDepSel==='generic::'+loc) _adminDepSel=null;
+  saveState();
+  document.getElementById('app').innerHTML = renderAdminDeploy();
+}
+function adminSelectLoc(key) { _adminDepSel=key; document.getElementById('app').innerHTML = renderAdminDeploy(); }
+
+function renderAdminDeploy() {
+  const generic = _getAllGenericLocs();
+  const structs = _getAllStructLocs();
+  const customSet = new Set(STATE.customLocations||[]);
+
+  // Sidebar
+  const genericItems = generic.map(loc=>{
+    const key='generic::'+loc;
+    const sel=_adminDepSel===key;
+    const isCustom=customSet.has(loc);
+    const isPlanet=PLANETS.includes(loc);
+    return `<div onclick="adminSelectLoc('${key.replace(/'/g,"\\'")}');"
+      style="display:flex;align-items:center;justify-content:space-between;padding:5px 10px;border-radius:4px;cursor:pointer;background:${sel?'var(--bg3)':'transparent'};border:1px solid ${sel?'var(--gold)':'transparent'}">
+      <span style="color:${sel?'var(--gold)':'var(--text)'}">
+        ${isPlanet?'🌍':'⭐'} ${esc(loc)}
+      </span>
+      ${isCustom?`<span onclick="event.stopPropagation();adminRemoveCustomLoc('${loc.replace(/'/g,"\\'")}');" style="color:var(--text2);cursor:pointer;font-size:10px;padding:0 4px" title="Remove">✕</span>`:''}
+    </div>`;
+  }).join('');
+
+  const structItems = structs.map(s=>{
+    const key='struct::'+s.name;
+    const sel=_adminDepSel===key;
+    return `<div onclick="adminSelectLoc('${key.replace(/'/g,"\\'")}');"
+      style="padding:5px 10px;border-radius:4px;cursor:pointer;background:${sel?'var(--bg3)':'transparent'};border:1px solid ${sel?'var(--gold)':'transparent'}">
+      <div style="color:${sel?'var(--gold)':'var(--text)'}">🏛 ${esc(s.name)}</div>
+      <div class="dim" style="font-size:11px">${esc(s.playerName)}${s.location?' · '+esc(s.location):''}${s.locationNote?' — '+esc(s.locationNote):''}</div>
+    </div>`;
+  }).join('');
+
+  const sidebar = `<div style="width:220px;flex-shrink:0">
+    <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text2);padding:4px 10px 6px">🌍 Generic Locations</div>
+    ${genericItems||'<div class="dim" style="padding:4px 10px;font-size:12px">None</div>'}
+    <div style="display:flex;gap:4px;padding:6px 10px">
+      <input id="new-generic-inp" type="text" placeholder="New location…" style="flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:4px 7px;font-size:12px;font-family:inherit" onkeydown="if(event.key==='Enter')adminAddCustomLoc()">
+      <button class="btn btn-green btn-sm" onclick="adminAddCustomLoc()">+</button>
+    </div>
+    <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text2);padding:10px 10px 6px;border-top:1px solid var(--border);margin-top:4px">🏛 Structures</div>
+    ${structItems||'<div class="dim" style="padding:4px 10px;font-size:12px">No structures</div>'}
+  </div>`;
+
+  // Main panel
+  let main = `<div class="dim" style="padding:40px;text-align:center">Select a location to view deployed forces.</div>`;
+  if(_adminDepSel) {
+    const isStruct = _adminDepSel.startsWith('struct::');
+    const locName = _adminDepSel.replace(/^(generic|struct)::/, '');
+    const forces = _getForcesAt(isStruct?'struct':'generic', locName);
+    const allLocs = _allLocOptions();
+    const rows = forces.map(f=>`<tr>
+      <td class="dim">${esc(f.playerName)}</td>
+      <td class="gold">${esc(f.name)}</td>
+      <td><span class="tag ${f.type==='Formation'?'tag-red':f.type==='Asset'?'tag-grey':'tag-blue'}" style="font-size:10px">${f.type}</span></td>
+      <td>${f.qty}</td>
+      <td class="dim">${f.strength?(Number(f.strength)*Number(f.qty)).toLocaleString()+' men':'—'}</td>
+      <td class="dim"><em>${esc(f.note)}</em></td>
+      <td style="display:flex;gap:4px;align-items:center">
+        <select style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 6px;font-size:12px;font-family:inherit"
+                onchange="if(this.value)adminMoveDep('${f.pid}','${f.listKey}','${f.itemId}',${f.depIdx},this.value)">
+          <option value="">Move to…</option>${allLocs}
+        </select>
+        <button class="btn btn-ghost btn-sm" onclick="showDeployModal('${f.listKey}','${f.itemId}','${f.pid}')">Edit</button>
+      </td>
+    </tr>`).join('');
+    main = `<div>
+      <div style="font-size:13px;font-weight:700;color:var(--gold);margin-bottom:12px">
+        ${isStruct?'🏛':'🌍'} ${esc(locName)}
+        <span style="color:var(--text2);font-weight:normal;font-size:12px;margin-left:8px">${forces.length} unit${forces.length!==1?'s':''}</span>
+      </div>
+      ${forces.length ? `<div class="tbl-wrap"><table>
+        <thead><tr><th>Player</th><th>Unit</th><th>Type</th><th>Qty</th><th>Strength</th><th>Note</th><th>Actions</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>` : `<div class="dim" style="padding:20px 0">Nothing deployed here.</div>`}
+    </div>`;
+  }
+
+  return `<div class="card" style="display:flex;gap:0;padding:0;overflow:hidden;min-height:500px">
+    <div style="padding:12px 0;border-right:1px solid var(--border);overflow-y:auto;max-height:80vh">${sidebar}</div>
+    <div style="flex:1;padding:16px;overflow-y:auto">${main}</div>
+  </div>`;
+}
+
+// ============================================================
+function renderAdminNotes() {
+  return `<div class="card">
+    <div class="card-title">Admin Notes</div>
+    <textarea id="admin-notes-ta" style="min-height:400px;width:100%">${esc(STATE.adminNotes||'')}</textarea>
+    <div style="margin-top:10px">
+      <button class="btn btn-gold" onclick="saveAdminNotes()">Save Notes</button>
+    </div>
+  </div>`;
+}
+function saveAdminNotes() {
+  STATE.adminNotes = document.getElementById('admin-notes-ta').value;
+  saveState(); notify('Notes saved.');
+}
+
+// ============================================================
+// ADMIN UTILITY ACTIONS
+// ============================================================
+function adminEditPlayer(pid) { adminPlayerSelected = pid; adminPlayerTab = 'character'; navigate('admin-players'); }
+
+function adminAdjustFunds(pid) {
+  const p = STATE.players[pid];
+  if(!p) return;
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.innerHTML = `<div class="modal" style="min-width:320px">
+    <h2>Adjust Funds: ${esc(p.displayName)}</h2>
+    <p class="dim" style="margin-bottom:12px">Current Balance: <strong class="gold">${fmtC(p.finances.balance)}</strong></p>
+    <div class="form-row">
+      <label>Amount (use negative to deduct)</label>
+      <input type="number" id="adj-amount" placeholder="e.g. 50000 or -25000">
+    </div>
+    <div class="form-row">
+      <label>Reason (optional)</label>
+      <input type="text" id="adj-reason" placeholder="e.g. Quest reward, upkeep">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+      <button class="btn btn-gold" onclick="doAdjustFunds('${pid}')">Apply</button>
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+}
+function doAdjustFunds(pid) {
+  const p = STATE.players[pid];
+  const amt = parseFloat(document.getElementById('adj-amount').value)||0;
+  if(amt===0) { notify('Amount cannot be zero', true); return; }
+  p.finances.balance += amt;
+  document.querySelector('.modal-overlay').remove();
+  saveState(); notify(`${amt>=0?'+':''}${fmt(amt)} applied to ${p.displayName}. New balance: ${fmt(p.finances.balance)}`); render();
+}
+
+function deletePlayer(pid) {
+  delete STATE.players[pid];
+  adminPlayerSelected = null;
+  saveState(); notify('Player deleted.'); render();
+}
+function addNewPlayer() {
+  const name = prompt('New player display name (e.g. Nichy):');
+  if(!name) return;
+  const id = name.toLowerCase().replace(/\s+/g,'_');
+  if(STATE.players[id]) { notify('Player ID already exists', true); return; }
+  STATE.players[id] = {
+    id, displayName: name,
+    character: { name:'', rank:'Lord', age:0, species:'', ideology:'', archetype:'', lightsaberForm:'', fightingStyle:'', equipment:[], personality:'', background:'', notes:'', specificSkills:[] },
+    finances: { balance:5000, startingBalance:5000 },
+    structures:[], formations:[], assets:[], miscItems:[],
+    income:[{ id:newId(), name:'Base Wage', quantity:1, income:5000, upkeep:0, net:5000, totalNet:5000 }],
+    production:[], populations:[], trophies:[], apprentices:[], artifacts:[]
+  };
+  adminPlayerSelected = id;
+  saveState(); notify('Player added.'); render();
+}
+
+function changeMasterPassword() {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.innerHTML = `<div class="modal" style="min-width:320px">
+    <h2>Change Master Password</h2>
+    <p class="dim" style="margin-bottom:16px">This password grants admin access and can log into any player account.</p>
+    <div class="form-row"><label>New Password</label><input type="password" id="mpw-new" style="width:100%"></div>
+    <div class="form-row"><label>Confirm</label><input type="password" id="mpw-confirm" style="width:100%" onkeydown="if(event.key==='Enter')doChangeMasterPw()"></div>
+    <div id="mpw-err" style="color:var(--red2);font-size:12px;margin-bottom:8px;display:none"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+      <button class="btn btn-gold" onclick="doChangeMasterPw()">Save</button>
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+}
+function doChangeMasterPw() {
+  const pw = document.getElementById('mpw-new').value;
+  const c = document.getElementById('mpw-confirm').value;
+  const err = document.getElementById('mpw-err');
+  if (!pw) { err.textContent = 'Password cannot be empty.'; err.style.display='block'; return; }
+  if (pw !== c) { err.textContent = 'Passwords do not match.'; err.style.display='block'; return; }
+  STATE.adminPassword = pw;
+  document.querySelector('.modal-overlay').remove();
+  saveState(); notify('Master password updated.');
+}
+
+function managePlayerPasswords() {
+  const rows = Object.values(STATE.players).map(p => `
+    <tr>
+      <td style="padding:8px 0">${esc(p.displayName)}</td>
+      <td><input type="password" placeholder="${p.password ? '••••••••' : 'No password'}" id="ppw-${p.id}"
+        style="background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:5px 8px;border-radius:4px;font-size:13px;width:140px"></td>
+      <td><button class="btn btn-ghost btn-sm" onclick="setPlayerPassword('${p.id}')">Set</button>
+          ${p.password ? `<button class="btn btn-ghost btn-sm" style="margin-left:4px" onclick="clearPlayerPassword('${p.id}')">Clear</button>` : ''}</td>
+    </tr>`).join('');
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.id = 'ppw-modal';
+  modal.innerHTML = `<div class="modal" style="min-width:420px">
+    <h2>Player Passwords</h2>
+    <p class="dim" style="margin-bottom:16px">Leave blank and click Set to keep existing password. Use Clear to remove a password.</p>
+    <table style="width:100%;border-collapse:collapse"><tbody>${rows}</tbody></table>
+    <div class="modal-actions" style="margin-top:16px">
+      <button class="btn btn-gold" onclick="document.getElementById('ppw-modal').remove()">Done</button>
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+}
+function setPlayerPassword(id) {
+  const input = document.getElementById('ppw-'+id);
+  const pw = input?.value;
+  if (!pw) return;
+  STATE.players[id].password = pw;
+  input.value = '';
+  input.placeholder = '••••••••';
+  saveState(); notify(`Password set for ${STATE.players[id].displayName}.`);
+}
+function clearPlayerPassword(id) {
+  delete STATE.players[id].password;
+  saveState(); notify(`Password cleared for ${STATE.players[id].displayName}.`);
+  document.getElementById('ppw-modal')?.remove();
+  managePlayerPasswords();
+}
+
+function exportData() {
+  const blob = new Blob([JSON.stringify(STATE, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'rta_data_' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+}
+function importData() {
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = '.json';
+  input.onchange = e => {
+    const file = e.target.files[0];
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if(!data.players) throw new Error('Invalid format');
+        if(!confirm('This will replace ALL current data. Continue?')) return;
+        STATE = data; saveState(); notify('Data imported.'); render();
+      } catch(err) { notify('Import failed: ' + err.message, true); }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+// ============================================================
+// INIT
+// ============================================================
+initApp();
+</script>
+</body>
+</html>

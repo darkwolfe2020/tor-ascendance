@@ -2799,16 +2799,19 @@ function renderAdminDeploy() {
 // ============================================================
 function renderAdminLocations() {
   const locs = STATE.locations||[];
+  const managedNames = new Set(locs.map(l=>l.name));
   const players = Object.values(STATE.players);
+  const secHdr = (label, count) => `<tr><td colspan="4" style="background:var(--bg);padding:5px 12px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text2)">${label} (${count})</td></tr>`;
   const visLabel = v => v==='all'
     ? '<span class="tag tag-grey">Everyone</span>'
     : `<span class="tag tag-blue">${esc(STATE.players[v]?.displayName||v)}</span>`;
 
+  // ── Managed locations grouped by classification ──
   let rows = '';
   ['Planet','Character','Structure'].forEach(cls => {
     const items = locs.filter(l=>l.classification===cls);
     if(!items.length) return;
-    rows += `<tr><td colspan="4" style="background:var(--bg);padding:5px 12px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text2)">${LOC_ICON[cls]} ${cls}s (${items.length})</td></tr>`;
+    rows += secHdr(`${LOC_ICON[cls]} ${cls}s`, items.length);
     rows += items.map(l=>`<tr>
       <td class="gold">${esc(l.name)}</td>
       <td>${LOC_ICON[l.classification]} ${l.classification}</td>
@@ -2820,24 +2823,77 @@ function renderAdminLocations() {
     </tr>`).join('');
   });
   const unclassed = locs.filter(l=>!['Planet','Character','Structure'].includes(l.classification));
-  if(unclassed.length) rows += unclassed.map(l=>`<tr>
-    <td class="gold">${esc(l.name)}</td><td>—</td><td>${visLabel(l.visibility)}</td>
-    <td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" onclick="showLocModal('${l.id}')">Edit</button><button class="btn btn-red btn-sm" onclick="deleteLoc('${l.id}')">✕</button></td>
-  </tr>`).join('');
+  if(unclassed.length) {
+    rows += secHdr('Unclassified', unclassed.length);
+    rows += unclassed.map(l=>`<tr>
+      <td class="gold">${esc(l.name)}</td><td class="dim">—</td><td>${visLabel(l.visibility)}</td>
+      <td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" onclick="showLocModal('${l.id}')">Edit</button><button class="btn btn-red btn-sm" onclick="deleteLoc('${l.id}')">✕</button></td>
+    </tr>`).join('');
+  }
   if(!rows) rows = '<tr class="empty-row"><td colspan="4">No locations defined. Use + Add Location to create some.</td></tr>';
 
+  // ── Unmanaged: locations in deployment data not yet in STATE.locations ──
+  const structNames = new Set();
+  players.forEach(p=>(p.structures||[]).forEach(s=>{if(s.name)structNames.add(s.name);}));
+  const deployedLocs = new Set();
+  players.forEach(p=>['formations','assets','miscItems'].forEach(k=>(p[k]||[]).forEach(item=>(item.deployments||[]).forEach(d=>{
+    if(d.location&&d.location.trim()) deployedLocs.add(d.location.trim());
+  }))));
+  const unmanaged = [...deployedLocs].filter(n=>!managedNames.has(n)&&!structNames.has(n)).sort();
+  let unmanagedRows = '';
+  if(unmanaged.length) {
+    unmanagedRows = `<div class="card" style="margin-top:12px">
+      <div class="card-title" style="color:var(--text2)">⭐ Unmanaged Deployment Locations (${unmanaged.length})
+        <span class="dim" style="font-size:11px;font-weight:normal;text-transform:none;letter-spacing:0">Used in deployments but not yet classified</span>
+      </div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Name</th><th>Classification</th><th>Visible To</th><th>Actions</th></tr></thead>
+        <tbody>${unmanaged.map(n=>`<tr>
+          <td>${esc(n)}</td><td class="dim">—</td><td class="dim">—</td>
+          <td><button class="btn btn-green btn-sm" onclick="showLocModal(null,'${n.replace(/'/g,"\\'")}','Planet','all')">+ Add</button></td>
+        </tr>`).join('')}</tbody>
+      </table></div>
+    </div>`;
+  }
+
+  // ── Player structures at the bottom ──
+  const allStructs = [];
+  players.forEach(p=>(p.structures||[]).forEach(s=>{if(s.name) allStructs.push({name:s.name,location:s.location||'',player:p.displayName,pid:p.id});}));
+  allStructs.sort((a,b)=>a.name.localeCompare(b.name));
+  let structRows = '';
+  if(allStructs.length) {
+    structRows = `<div class="card" style="margin-top:12px">
+      <div class="card-title" style="color:var(--text2)">🏛 Player Structures (${allStructs.length})
+        <span class="dim" style="font-size:11px;font-weight:normal;text-transform:none;letter-spacing:0">All structures across all players</span>
+      </div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Name</th><th>Player</th><th>Location</th><th>In Locations List</th><th>Actions</th></tr></thead>
+        <tbody>${allStructs.map(s=>{
+          const inList = managedNames.has(s.name);
+          return `<tr>
+            <td class="gold">${esc(s.name)}</td>
+            <td class="dim">${esc(s.player)}</td>
+            <td class="dim">${esc(s.location)||'—'}</td>
+            <td>${inList?'<span class="tag tag-grey">✓ Yes</span>':'<span class="dim">No</span>'}</td>
+            <td>${inList?'':'<button class="btn btn-green btn-sm" onclick="showLocModal(null,\''+s.name.replace(/'/g,"\\'").replace(/"/g,'&quot;')+'\',\'Structure\',\'all\')">+ Add</button>'}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table></div>
+    </div>`;
+  }
+
   return `<div class="card">
-    <div class="card-title">Locations (${locs.length})
+    <div class="card-title">Managed Locations (${locs.length})
       <button class="btn btn-green btn-sm" onclick="showLocModal(null)">+ Add Location</button>
     </div>
     <div class="tbl-wrap"><table>
       <thead><tr><th>Name</th><th>Classification</th><th>Visible To</th><th>Actions</th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>
-  </div>`;
+  </div>${unmanagedRows}${structRows}`;
 }
 
-function showLocModal(id) {
+function showLocModal(id, prefillName='', prefillCls='Planet', prefillVis='all') {
   const loc = id ? (STATE.locations||[]).find(l=>l.id===id) : null;
   const players = Object.values(STATE.players);
   const overlay = document.createElement('div');
@@ -2846,17 +2902,17 @@ function showLocModal(id) {
   overlay.innerHTML = `<div class="modal" style="min-width:360px;max-width:480px">
     <h2 style="margin-bottom:16px">${loc?'Edit':'Add'} Location</h2>
     <div class="form-row"><label>Name</label>
-      <input type="text" id="loc-m-name" value="${esc(loc?.name||'')}" placeholder="e.g. Dromund Kaas, Lord Rupbert, The Citadel">
+      <input type="text" id="loc-m-name" value="${esc(loc?.name||prefillName)}" placeholder="e.g. Dromund Kaas, Lord Rupbert, The Citadel">
     </div>
     <div class="form-row"><label>Classification</label>
       <select id="loc-m-cls">
-        ${['Planet','Character','Structure'].map(c=>`<option value="${c}" ${(loc?.classification||'Planet')===c?'selected':''}>${LOC_ICON[c]} ${c}</option>`).join('')}
+        ${['Planet','Character','Structure'].map(c=>`<option value="${c}" ${(loc?.classification||prefillCls)===c?'selected':''}>${LOC_ICON[c]} ${c}</option>`).join('')}
       </select>
     </div>
     <div class="form-row"><label>Visible To</label>
       <select id="loc-m-vis">
-        <option value="all" ${(!loc||loc.visibility==='all')?'selected':''}>🌐 Everyone (Generic)</option>
-        ${players.map(p=>`<option value="${p.id}" ${loc?.visibility===p.id?'selected':''}>👤 ${esc(p.displayName)} only</option>`).join('')}
+        <option value="all" ${(loc?loc.visibility==='all':prefillVis==='all')?'selected':''}>🌐 Everyone (Generic)</option>
+        ${players.map(p=>`<option value="${p.id}" ${(loc?loc.visibility===p.id:prefillVis===p.id)?'selected':''}>👤 ${esc(p.displayName)} only</option>`).join('')}
       </select>
     </div>
     <div class="modal-actions">

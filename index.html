@@ -457,27 +457,6 @@ function buildSeedState() {
       { id:newId(), name:'Darkshard Amulet', number:1, quality:'Normal', value:'?', description:'An amulet that forms force power into shards of dark side energy flung 20 yards.', effects:'Fires a shard of darkness, consumes flesh like acid' }
     ]
   );
-  players['kinkaid'].unitRosters = {
-    'Obedience Unit': {
-      description:'A veteran squad of Imperial Troopers with a trend towards sadism. Multiple flamethrowers and personal shields. Specializes in urban anti-infantry.',
-      sections: [
-        { section:'Officers (1)',           members:[{ name:'Sergeant: Korven Task', weaponry:'Flamethrower', qty:1, equipment:'2x Thermal Detonators, 1x Designator' }] },
-        { section:'Fire Team (1)',          members:[{ name:'Imperial Trooper',      weaponry:'Rifle',        qty:3, equipment:'' }] },
-        { section:'Heavy Weapons Team (1)', members:[{ name:'Imperial Trooper',      weaponry:'Rifle',        qty:1, equipment:'' }, { name:'Imperial Heavy Trooper', weaponry:'Heavy Rifle', qty:1, equipment:'1x Thermal Detonator' }, { name:'Imperial AT', weaponry:'Rifle, Missile Launcher', qty:1, equipment:'' }] },
-        { section:'Support Team (1)',       members:[{ name:'Imperial Trooper',      weaponry:'Rifle',        qty:2, equipment:'' }, { name:'Flamethrower Trooper', weaponry:'Flamethrower', qty:1, equipment:'' }] }
-      ]
-    },
-    'Salvager Team': {
-      description:'A collection of 3 salvagers and one slicer led by Jack Kade with his warsword.',
-      sections: [
-        { section:'Team', members:[
-          { name:'Jack Kade',        weaponry:'Rifle',   qty:1, equipment:'2x Thermal Detonators, 1x Sith Warblade' },
-          { name:'Salvager Grunt',   weaponry:'Rifle',   qty:3, equipment:'' },
-          { name:'Slicer Specialist',weaponry:'Pistol',  qty:1, equipment:'Slicing Kit' }
-        ]}
-      ]
-    }
-  };
   players['kinkaid'].factionData = {
     imperialDoctinalControl: {
       commander: 'Lord Torvax',

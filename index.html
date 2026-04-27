@@ -1871,6 +1871,38 @@ function _saveDepModal() {
 }
 
 // ============================================================
+// ADMIN STRUCTURE LOCATION PICKER
+// ============================================================
+let _alpOpen = null, _alpSearch = {};
+function _alpKey(pid, idx) { return pid + '_' + idx; }
+function _alpOpts(pid, idx, text) {
+  const p = STATE.players[pid]; if(!p) return '';
+  const q = (text||'').toLowerCase().trim();
+  const playerLocs = getPlayerLocations(p);
+  const filtP = q ? PLANETS.filter(l=>l.toLowerCase().includes(q)) : PLANETS;
+  const filtU = q ? playerLocs.filter(l=>l.toLowerCase().includes(q)) : playerLocs;
+  let html = '';
+  if(filtP.length) { html += `<div class="loc-sec">Planets</div>`+filtP.map(l=>`<div class="loc-opt" onclick="event.stopPropagation();_alpSelect('${pid}',${idx},'${l.replace(/'/g,"\\'")}')"> ${esc(l)}</div>`).join(''); }
+  if(filtU.length) { html += `<div class="loc-sec">Other Locations</div>`+filtU.map(l=>`<div class="loc-opt" onclick="event.stopPropagation();_alpSelect('${pid}',${idx},'${l.replace(/'/g,"\\'")}')"> ${esc(l)}</div>`).join(''); }
+  const exactExists = [...PLANETS,...playerLocs].some(l=>l.toLowerCase()===q);
+  if(text&&!exactExists) html += `<div class="loc-opt loc-create" onclick="event.stopPropagation();_alpSelect('${pid}',${idx},'${text.replace(/'/g,"\\'").replace(/"/g,'\\"')}')">+ Create &ldquo;${esc(text)}&rdquo;</div>`;
+  if(!html) html = `<div class="loc-opt" style="color:var(--text2);cursor:default">No locations found</div>`;
+  return html;
+}
+function _alpOpenFn(pid, idx) { const k=_alpKey(pid,idx); _alpOpen=k; const dd=document.getElementById('alp-dd-'+k); if(dd) dd.innerHTML=_alpOpts(pid,idx,_alpSearch[k]||''); }
+function _alpFilter(pid, idx, v) { const k=_alpKey(pid,idx); _alpSearch[k]=v; _alpOpen=k; const dd=document.getElementById('alp-dd-'+k); if(dd) dd.innerHTML=_alpOpts(pid,idx,v); }
+function _alpSelect(pid, idx, loc) { const k=_alpKey(pid,idx); _alpOpen=null; _alpSearch[k]=''; if(STATE.players[pid]?.structures) STATE.players[pid].structures[idx].location=loc; saveState(); render(); }
+function _alpClear(pid, idx) { const k=_alpKey(pid,idx); _alpOpen=null; _alpSearch[k]=''; if(STATE.players[pid]?.structures) STATE.players[pid].structures[idx].location=''; saveState(); render(); }
+function _alpCellHtml(pid, idx, loc) {
+  const k = _alpKey(pid,idx);
+  return loc
+    ? `<div class="loc-chip">📍 ${esc(loc)} <span class="lx" onclick="event.stopPropagation();_alpClear('${pid}',${idx})">✕</span></div>`
+    : `<input type="text" class="loc-search-inp" value="${esc(_alpSearch[k]||'')}" placeholder="Search location…" autocomplete="off" style="width:100%"
+         oninput="_alpFilter('${pid}',${idx},this.value)" onfocus="_alpOpenFn('${pid}',${idx})" onclick="event.stopPropagation()">
+       <div class="loc-dd" id="alp-dd-${k}">${_alpOpen===k?_alpOpts(pid,idx,_alpSearch[k]||''):''}</div>`;
+}
+
+// ============================================================
 // FINANCE
 // ============================================================
 function renderFinance() {
@@ -2184,10 +2216,16 @@ function renderAdminCharacterEdit(p) {
       <button class="btn btn-red btn-sm" onclick="if(confirm('Delete player?'))deletePlayer('${p.id}')">Delete Player</button>
     </div>
     <div class="grid2">
-      ${['name','rank','age','species','ideology','archetype','lightsaberForm'].map(f=>`<div class="form-row">
+      ${['name','age','species','ideology','archetype','lightsaberForm'].map(f=>`<div class="form-row">
         <label>${f.charAt(0).toUpperCase()+f.slice(1)}</label>
         <input type="text" id="ce-${f}" value="${esc(c[f]||'')}">
       </div>`).join('')}
+      <div class="form-row">
+        <label>Rank</label>
+        <select id="ce-rank">
+          ${['Lower Lord','Lord','Upper Lord','Lower Darth','Darth','Upper Darth'].map(r=>`<option value="${r}" ${c.rank===r?'selected':''}>${r}</option>`).join('')}
+        </select>
+      </div>
       <div class="form-row">
         <label>Equipment (one per line)</label>
         <textarea id="ce-equipment" rows="3">${esc(Array.isArray(c.equipment)?c.equipment.join('\n'):(c.equipment||''))}</textarea>
@@ -2307,7 +2345,7 @@ function renderAdminListEdit(p, listKey, title, fields) {
       <thead><tr>${fields.map(f=>`<th style="min-width:${colWidth[f]||'80px'}">${f}</th>`).join('')}<th>Actions</th></tr></thead>
       <tbody>
         ${list.map((row,idx)=>`<tr>
-          ${fields.map(f=>{const isNum=['quantity','deployed','undeployed','strength','number'].includes(f);const w=colWidth[f]?'calc('+colWidth[f]+' - 20px)':'80px';return isNum?`<td><input type="text" value="${fmtNum(row[f]||0)}" style="min-width:${w}" oninput="numInput(this)" inputmode="numeric" onchange="adminUpdateCell('${p.id}','${listKey}',${idx},'${f}',this.value)"></td>`:`<td><textarea class="admin-ta" style="min-width:${w}" onfocus="adminTaFocus(this)" onblur="adminTaBlur(this)" onchange="adminUpdateCell('${p.id}','${listKey}',${idx},'${f}',this.value)">${esc(row[f]||'')}</textarea></td>`;}).join('')}
+          ${fields.map(f=>{const isNum=['quantity','deployed','undeployed','strength','number'].includes(f);const w=colWidth[f]?'calc('+colWidth[f]+' - 20px)':'80px';if(listKey==='structures'&&f==='location')return`<td><div class="loc-selector" style="min-width:${w}">${_alpCellHtml(p.id,idx,row.location||'')}</div></td>`;return isNum?`<td><input type="text" value="${fmtNum(row[f]||0)}" style="min-width:${w}" oninput="numInput(this)" inputmode="numeric" onchange="adminUpdateCell('${p.id}','${listKey}',${idx},'${f}',this.value)"></td>`:`<td><textarea class="admin-ta" style="min-width:${w}" onfocus="adminTaFocus(this)" onblur="adminTaBlur(this)" onchange="adminUpdateCell('${p.id}','${listKey}',${idx},'${f}',this.value)">${esc(row[f]||'')}</textarea></td>`;}).join('')}
           <td style="white-space:nowrap">
             ${canMove?`<select style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:4px;padding:2px 4px;font-size:11px;font-family:inherit;margin-right:4px" onchange="if(this.value){adminMoveRow('${p.id}','${listKey}',${idx},this.value);this.value=''}"><option value="">↔ Move…</option>${moveOpts}</select>`:''}
             <button class="btn btn-red btn-sm" onclick="adminDeleteRow('${p.id}','${listKey}',${idx})">✕</button>

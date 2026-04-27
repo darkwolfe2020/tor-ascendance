@@ -44,10 +44,10 @@
   .btn-blue { background: var(--blue); color: #fff; }
 
   /* MAIN */
-  #app { padding: 20px; max-width: 1400px; margin: 0 auto; }
+  #app { padding: 14px; max-width: 1400px; margin: 0 auto; }
 
   /* CARDS */
-  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 16px; margin-bottom: 16px; }
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 12px; margin-bottom: 12px; }
   .card-title { color: var(--gold); font-size: 13px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
@@ -1580,11 +1580,11 @@ function renderDeployed() {
 
 function renderFormationsTab(p) {
   const rows = (p.formations||[]).map(f => `<tr>
-    <td class="gold">${esc(f.name)}</td>
-    <td>${f.quantity}</td>
+    <td class="gold" style="word-break:break-word">${esc(f.name)}</td>
+    <td class="td-num">${f.quantity}</td>
     <td style="text-align:center">${f.strength?`<span class="tag tag-grey" style="font-size:11px">${f.strength} men</span>`:'<span class="dim">—</span>'}</td>
     <td><span class="tag tag-grey">${esc(f.category)}</span></td>
-    <td class="dim" style="max-width:220px">${esc(f.description)}</td>
+    <td class="dim" style="word-break:break-word">${esc(f.description)}</td>
     <td>
       <div class="deploy-ctrl">
         <span class="badge-deployed" title="Deployed">${totalDeployed(f)}</span>
@@ -1594,7 +1594,7 @@ function renderFormationsTab(p) {
       </div>
       ${deploymentSummary(f)}
     </td>
-    <td class="dim">${esc(f.misc)}</td>
+    <td class="dim" style="word-break:break-word">${esc(f.misc)}</td>
   </tr>`).join('');
 
   const fList = p.formations||[];
@@ -1602,7 +1602,8 @@ function renderFormationsTab(p) {
   return `<div class="card">
     <div class="card-title">Formations <span class="tag tag-grey">${fList.length}</span>${fCats?`<span class="dim" style="font-size:11px;font-weight:normal;margin-left:8px">${fCats}</span>`:''}
     </div>
-    <div class="tbl-wrap"><table>
+    <div class="tbl-wrap"><table style="width:100%;table-layout:fixed">
+      <colgroup><col style="width:130px"><col style="width:38px"><col style="width:80px"><col style="width:85px"><col><col style="width:210px"><col style="width:110px"></colgroup>
       <thead><tr><th>Name</th><th>Qty</th><th>Strength</th><th>Category</th><th>Description</th><th>Deployed / Undeployed</th><th>Misc</th></tr></thead>
       <tbody>${rows || '<tr class="empty-row"><td colspan="7">No formations</td></tr>'}</tbody>
     </table></div>
@@ -1611,10 +1612,10 @@ function renderFormationsTab(p) {
 
 function renderAssetsTab(p) {
   const rows = (p.assets||[]).map(a => `<tr>
-    <td class="gold">${esc(a.name)}</td>
-    <td>${a.quantity}</td>
+    <td class="gold" style="word-break:break-word">${esc(a.name)}</td>
+    <td class="td-num">${a.quantity}</td>
     <td><span class="tag tag-grey">${esc(a.category)}</span></td>
-    <td class="dim" style="max-width:200px">${esc(a.description)}</td>
+    <td class="dim" style="word-break:break-word">${esc(a.description)}</td>
     <td>
       <div class="deploy-ctrl">
         <span class="badge-deployed" title="Deployed">${totalDeployed(a)}</span>
@@ -1624,7 +1625,7 @@ function renderAssetsTab(p) {
       </div>
       ${deploymentSummary(a)}
     </td>
-    <td class="dim">${esc(a.misc)}</td>
+    <td class="dim" style="word-break:break-word">${esc(a.misc)}</td>
   </tr>`).join('');
 
   const aList = p.assets||[];
@@ -1632,7 +1633,8 @@ function renderAssetsTab(p) {
   return `<div class="card">
     <div class="card-title">Assets <span class="tag tag-grey">${aList.length}</span>${aCats?`<span class="dim" style="font-size:11px;font-weight:normal;margin-left:8px">${aCats}</span>`:''}
     </div>
-    <div class="tbl-wrap"><table>
+    <div class="tbl-wrap"><table style="width:100%;table-layout:fixed">
+      <colgroup><col style="width:130px"><col style="width:38px"><col style="width:85px"><col><col style="width:210px"><col style="width:110px"></colgroup>
       <thead><tr><th>Name</th><th>Qty</th><th>Category</th><th>Description</th><th>Deployed / Undeployed</th><th>Misc</th></tr></thead>
       <tbody>${rows || '<tr class="empty-row"><td colspan="6">No assets</td></tr>'}</tbody>
     </table></div>
@@ -1643,13 +1645,13 @@ function renderStructuresTab(p) {
   const rows = (p.structures||[]).map(s => {
     const forces = getStructureForces(p, s.name);
     return `<tr>
-      <td class="gold">${esc(s.name)}</td>
-      <td>${s.quantity}</td>
+      <td class="gold" style="word-break:break-word">${esc(s.name)}</td>
+      <td class="td-num">${s.quantity}</td>
       <td><span class="tag tag-grey">${esc(s.category)}</span></td>
-      <td class="dim" style="max-width:200px">${esc(s.description)}</td>
-      <td class="dim">${esc(s.location)}${s.locationNote?`<br><em style="font-size:11px;color:var(--text2)">${esc(s.locationNote)}</em>`:''}</td>
+      <td class="dim" style="word-break:break-word">${esc(s.description)}</td>
+      <td class="dim" style="word-break:break-word">${esc(s.location)}${s.locationNote?`<br><em style="font-size:11px;color:var(--text2)">${esc(s.locationNote)}</em>`:''}</td>
       <td>${renderAttachedForces(forces)}</td>
-      <td class="dim">${esc(s.misc)}</td>
+      <td class="dim" style="word-break:break-word">${esc(s.misc)}</td>
     </tr>`;
   }).join('');
 
@@ -1658,7 +1660,8 @@ function renderStructuresTab(p) {
   return `<div class="card">
     <div class="card-title">Structures <span class="tag tag-grey">${sList.length}</span>${sCats?`<span class="dim" style="font-size:11px;font-weight:normal;margin-left:8px">${sCats}</span>`:''}
     </div>
-    <div class="tbl-wrap"><table>
+    <div class="tbl-wrap"><table style="width:100%;table-layout:fixed">
+      <colgroup><col style="width:130px"><col style="width:38px"><col style="width:85px"><col><col style="width:130px"><col style="width:170px"><col style="width:110px"></colgroup>
       <thead><tr><th>Name</th><th>Qty</th><th>Category</th><th>Description</th><th>Location</th><th>Attached Forces</th><th>Misc</th></tr></thead>
       <tbody>${rows || '<tr class="empty-row"><td colspan="7">No structures</td></tr>'}</tbody>
     </table></div>
@@ -1667,10 +1670,10 @@ function renderStructuresTab(p) {
 
 function renderMiscTab(p) {
   const rows = (p.miscItems||[]).map(m => `<tr>
-    <td class="gold">${esc(m.name)}</td>
-    <td>${m.quantity}</td>
+    <td class="gold" style="word-break:break-word">${esc(m.name)}</td>
+    <td class="td-num">${m.quantity}</td>
     <td><span class="tag tag-grey">${esc(m.category)}</span></td>
-    <td class="dim" style="max-width:240px">${esc(m.description)}</td>
+    <td class="dim" style="word-break:break-word">${esc(m.description)}</td>
     <td>
       <div class="deploy-ctrl">
         <span class="badge-deployed" title="Deployed">${totalDeployed(m)}</span>
@@ -1680,7 +1683,7 @@ function renderMiscTab(p) {
       </div>
       ${deploymentSummary(m)}
     </td>
-    <td class="dim">${esc(m.misc)}</td>
+    <td class="dim" style="word-break:break-word">${esc(m.misc)}</td>
   </tr>`).join('');
 
   const mList = p.miscItems||[];
@@ -1688,7 +1691,8 @@ function renderMiscTab(p) {
   return `<div class="card">
     <div class="card-title">Misc Items <span class="tag tag-grey">${mList.length}</span>${mCats?`<span class="dim" style="font-size:11px;font-weight:normal;margin-left:8px">${mCats}</span>`:''}
     </div>
-    <div class="tbl-wrap"><table>
+    <div class="tbl-wrap"><table style="width:100%;table-layout:fixed">
+      <colgroup><col style="width:130px"><col style="width:38px"><col style="width:85px"><col><col style="width:210px"><col style="width:110px"></colgroup>
       <thead><tr><th>Name</th><th>Qty</th><th>Category</th><th>Description</th><th>Deployed / Undeployed</th><th>Misc</th></tr></thead>
       <tbody>${rows || '<tr class="empty-row"><td colspan="6">No misc items</td></tr>'}</tbody>
     </table></div>

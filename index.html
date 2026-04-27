@@ -1377,8 +1377,7 @@ function renderAssets() {
   if(!p) return '';
 
   const tabs = ['formations','assets','structures','misc'];
-  const tabLabels = { formations:'Formations', assets:'Assets', structures:'Structures', misc:'Misc Items', rosters:'Unit Rosters' };
-  if(p.unitRosters && Object.keys(p.unitRosters).length) tabs.push('rosters');
+  const tabLabels = { formations:'Formations', assets:'Assets', structures:'Structures', misc:'Misc Items' };
 
   return `
   <div class="tab-bar">
@@ -1388,7 +1387,6 @@ function renderAssets() {
   ${assetsTab==='assets' ? renderAssetsTab(p) : ''}
   ${assetsTab==='structures' ? renderStructuresTab(p) : ''}
   ${assetsTab==='misc' ? renderMiscTab(p) : ''}
-  ${assetsTab==='rosters' ? renderUnitRostersTab(p) : ''}
   `;
 }
 
@@ -1676,33 +1674,6 @@ function renderMiscTab(p) {
       <tbody>${rows || '<tr class="empty-row"><td colspan="6">No misc items</td></tr>'}</tbody>
     </table></div>
   </div>`;
-}
-
-function renderUnitRostersTab(p) {
-  const rosters = p.unitRosters || {};
-  const names = Object.keys(rosters);
-  if(!names.length) return '<div class="card"><div class="dim" style="padding:20px">No unit rosters.</div></div>';
-
-  return names.map(unitName => {
-    const r = rosters[unitName];
-    return `<div class="card" style="margin-bottom:16px">
-      <div class="card-title">${esc(unitName)} — Roster</div>
-      ${r.description ? `<p class="dim" style="margin-bottom:12px">${esc(r.description)}</p>` : ''}
-      ${(r.sections||[]).map(sec => `
-        <div style="margin-bottom:14px">
-          <div style="color:var(--gold);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">${esc(sec.section)}</div>
-          <div class="tbl-wrap"><table>
-            <thead><tr><th>Name</th><th>Weaponry</th><th>Qty</th><th>Equipment</th></tr></thead>
-            <tbody>${(sec.members||[]).map(m=>`<tr>
-              <td>${esc(m.name)}</td>
-              <td><span class="tag tag-grey">${esc(m.weaponry)}</span></td>
-              <td class="td-num">${m.qty}</td>
-              <td class="dim">${esc(m.equipment)||'—'}</td>
-            </tr>`).join('')}</tbody>
-          </table></div>
-        </div>`).join('')}
-    </div>`;
-  }).join('');
 }
 
 // ============================================================

@@ -985,6 +985,7 @@ function render() {
       <button class="nav-btn ${currentView==='deployed'?'active':''}" onclick="navigate('deployed')">Deployed Forces</button>
       <button class="nav-btn ${currentView==='finance'?'active':''}" onclick="navigate('finance')">Finance</button>
       <button class="nav-btn ${currentView==='population'?'active':''}" onclick="navigate('population')">Population</button>
+      <button class="nav-btn ${currentView==='apprentices'?'active':''}" onclick="navigate('apprentices')">Apprentices</button>
       <button class="nav-btn ${currentView==='shop'?'active':''}" onclick="navigate('shop')">Shop</button>
     `;
   } else if(isAdmin) {
@@ -1014,6 +1015,7 @@ function render() {
     case 'deployed': app.innerHTML = renderDeployed(); break;
     case 'finance': app.innerHTML = renderFinance(); break;
     case 'population': app.innerHTML = renderPopulation(); break;
+    case 'apprentices': app.innerHTML = renderApprentices(); break;
     case 'shop': app.innerHTML = renderShop(); break;
     case 'admin-overview': app.innerHTML = renderAdminOverview(); break;
     case 'admin-players': app.innerHTML = renderAdminPlayers(); break;
@@ -1996,6 +1998,43 @@ function renderPopulation() {
           <th class="td-num">Tax%</th>
           <th class="td-num">Tax Income</th>
           <th>Additional Info</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+function renderApprentices() {
+  const p = STATE.players[currentPlayer];
+  if(!p) return '<div class="card">No player data.</div>';
+  const apps = p.apprentices||[];
+  if(!apps.length) return `<div class="card"><div class="card-title">Apprentices</div><div class="dim" style="padding:12px">No apprentices.</div></div>`;
+
+  const ranks = [...new Set(apps.map(a=>a.rank||'Unknown'))];
+  const rankCounts = ranks.map(r=>({ rank:r, count:apps.filter(a=>(a.rank||'Unknown')===r).length }));
+
+  const rows = apps.map(a=>`<tr>
+    <td class="gold">${esc(a.name)}</td>
+    <td><span class="tag tag-red">${esc(a.rank||'')}</span></td>
+    <td>${esc(a.specialization||'')}</td>
+    <td>${esc(a.form||'')}</td>
+    <td class="dim">${esc(a.location||'')}</td>
+    <td class="dim" style="max-width:220px">${esc(a.fightingStyle||'')}</td>
+    <td class="dim" style="max-width:220px">${esc(a.description||'')}</td>
+  </tr>`).join('');
+
+  return `
+  <div class="grid${Math.min(rankCounts.length+1,4)}" style="margin-bottom:16px">
+    <div class="stat-box"><div class="label">Total Apprentices</div><div class="value">${apps.length}</div></div>
+    ${rankCounts.map(rc=>`<div class="stat-box"><div class="label">${esc(rc.rank)}</div><div class="value">${rc.count}</div></div>`).join('')}
+  </div>
+  <div class="card">
+    <div class="card-title">Apprentices</div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>Name</th><th>Rank</th><th>Specialization</th><th>Form</th><th>Location</th><th>Fighting Style</th><th>Description</th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>

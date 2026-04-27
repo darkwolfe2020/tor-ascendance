@@ -2184,12 +2184,12 @@ let adminPlayerSelected = null;
 let adminPlayerTab = 'character';
 function renderAdminPlayers() {
   const players = Object.values(STATE.players);
-  const sidebar = `<div style="display:flex;flex-direction:column;gap:4px">
-    ${players.map(p=>`<div style="padding:8px 12px;border-radius:4px;cursor:pointer;background:${adminPlayerSelected===p.id?'var(--bg3)':'transparent'};border:1px solid ${adminPlayerSelected===p.id?'var(--gold)':'transparent'}" onclick="adminPlayerSelected='${p.id}';render()">
-      <div style="color:${adminPlayerSelected===p.id?'var(--gold)':'var(--text)'}">  ${esc(p.displayName)}</div>
-      <div class="dim" style="font-size:11px">${esc(p.character.name)}</div>
+  const sidebar = `<div style="display:flex;flex-direction:column;gap:3px">
+    ${players.map(p=>`<div style="padding:6px 8px;border-radius:4px;cursor:pointer;background:${adminPlayerSelected===p.id?'var(--bg3)':'transparent'};border:1px solid ${adminPlayerSelected===p.id?'var(--gold)':'transparent'}" onclick="adminPlayerSelected='${p.id}';render()">
+      <div style="color:${adminPlayerSelected===p.id?'var(--gold)':'var(--text)'};font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.displayName)}</div>
+      <div class="dim" style="font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(p.character.name)}</div>
     </div>`).join('')}
-    <button class="btn btn-green btn-sm" style="margin-top:8px" onclick="addNewPlayer()">+ Add Player</button>
+    <button class="btn btn-green btn-sm" style="margin-top:6px;font-size:11px" onclick="addNewPlayer()">+ Add Player</button>
   </div>`;
 
   let content = '<div class="dim" style="padding:20px">Select a player to edit.</div>';
@@ -2215,8 +2215,8 @@ function renderAdminPlayers() {
     `;
   }
 
-  return `<div class="grid2" style="grid-template-columns:220px 1fr;gap:16px">
-    <div class="card" style="height:fit-content">${sidebar}</div>
+  return `<div class="grid2" style="grid-template-columns:160px 1fr;gap:12px">
+    <div class="card" style="height:fit-content;padding:10px">${sidebar}</div>
     <div>${content}</div>
   </div>`;
 }
@@ -2346,7 +2346,7 @@ const ADMIN_LIST_FIELDS = {
 };
 function renderAdminListEdit(p, listKey, title, fields) {
   const list = p[listKey]||[];
-  const colWidth = { name:'150px', description:'220px', category:'100px', quantity:'60px', deployed:'70px', undeployed:'80px', location:'120px', misc:'100px', attachedForces:'120px' };
+  const colWidth = { name:'90px', description:'380px', category:'80px', quantity:'55px', number:'55px', strength:'60px', deployed:'60px', undeployed:'70px', location:'110px', locationNote:'130px', misc:'110px', attachedForces:'110px', aura:'60px', quality:'70px', form:'90px', rank:'70px', specialization:'90px', conflict:'110px', claimedFrom:'110px', effects:'200px' };
   const canMove = listKey in MOVABLE_LISTS;
   const moveOpts = canMove ? Object.entries(MOVABLE_LISTS).filter(([k])=>k!==listKey).map(([k,v])=>`<option value="${k}">${v}</option>`).join('') : '';
   return `<div class="card">

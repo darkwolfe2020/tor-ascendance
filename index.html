@@ -194,7 +194,7 @@
 // DATA MODEL
 // ============================================================
 const DEFAULT_ADMIN_PASSWORD = 'rta2024';
-const DATA_VERSION = 6;
+const DATA_VERSION = 7;
 
 // ============================================================
 // SUPABASE (data only — no auth)
@@ -239,8 +239,19 @@ function migrateState(state) {
       });
     });
   });
+  // Migrate to managed locations
+  if(!state.locations || !state.locations.length) {
+    const customs = (state.customLocations||[]).filter(n=>!PLANETS.includes(n));
+    state.locations = [
+      ...PLANETS.map(name=>({id:newId(),name,classification:'Planet',visibility:'all'})),
+      ...customs.map(name=>({id:newId(),name,classification:'Planet',visibility:'all'}))
+    ];
+  }
   return state;
 }
+
+const PLANETS = ['Alderaan','Balmorra','Belsavis','Corellia','Coruscant','Darvannis','Dromund Kaas','Emberlene','Handooine','Hoth','Hutta','Iokath','Ilum','Jabiim','Korriban','Makeb','Manaan','Mek-Sha','Malachor','Nathema','Nar Shaddaa','Odessen','Onderon','Ord Mantell','Ossus','Rishi','Tatooine','Taris','Voss','Yavin IV','Zakuul','Ziost'].sort();
+const LOC_ICON = { Planet:'🌍', Character:'👤', Structure:'🏛' };
 
 // ============================================================
 // SEED DATA
@@ -818,7 +829,7 @@ function buildSeedState() {
     players,
     shopItems,
     purchaseRequests: [],
-    customLocations: [],
+    locations: PLANETS.map(name=>({id:newId(),name,classification:'Planet',visibility:'all'})),
     adminPassword: DEFAULT_ADMIN_PASSWORD,
     adminNotes: ''
   };
@@ -888,9 +899,11 @@ function notify(msg, err=false) {
 function calcNet(player) {
   return (player.income || []).reduce((s, r) => s + (Number(r.totalNet)||0), 0);
 }
-const PLANETS = ['Alderaan','Balmorra','Belsavis','Corellia','Coruscant','Darvannis','Dromund Kaas','Emberlene','Handooine','Hoth','Hutta','Iokath','Ilum','Jabiim','Korriban','Makeb','Manaan','Mek-Sha','Malachor','Nathema','Nar Shaddaa','Odessen','Onderon','Ord Mantell','Ossus','Rishi','Tatooine','Taris','Voss','Yavin IV','Zakuul','Ziost'].sort();
 // Credit symbol: two # verticals + one crossbar centered between them + matching-width 7 diagonal
 const CREDIT_SVG = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 90 105' fill='currentColor' style='height:1.05em;width:auto;display:inline-block;vertical-align:middle;margin-right:-0.27em;position:relative;top:-0.06em'><rect x='8' y='8' width='7' height='40'/><rect x='20' y='8' width='7' height='40'/><rect x='0' y='17' width='50' height='16'/><polygon points='50,15 64,21 34,82 20,86'/></svg>`;
+function getLocationsFor(pid) {
+  return (STATE.locations||[]).filter(l=>l.visibility==='all'||l.visibility===pid);
+}
 function getPlayerLocations(p) {
   const structNames = new Set((p.structures||[]).map(s=>s.name).filter(Boolean));
   const locs = new Set();
@@ -992,6 +1005,7 @@ function render() {
       <button class="nav-btn ${currentView==='admin-shop'?'active':''}" onclick="navigate('admin-shop')">Shop Items</button>
       <button class="nav-btn ${currentView==='admin-requests'?'active':''}" onclick="navigate('admin-requests')">Purchase Requests${pendingCount()>0?`<span id="pending-badge">${pendingCount()}</span>`:''}</button>
       <button class="nav-btn ${currentView==='admin-deploy'?'active':''}" onclick="navigate('admin-deploy')">Deployments</button>
+      <button class="nav-btn ${currentView==='admin-locations'?'active':''}" onclick="navigate('admin-locations')">Locations</button>
       <button class="nav-btn ${currentView==='admin-notes'?'active':''}" onclick="navigate('admin-notes')">Notes</button>
     `;
   } else {
@@ -1014,6 +1028,7 @@ function render() {
     case 'admin-shop': app.innerHTML = renderAdminShop(); break;
     case 'admin-requests': app.innerHTML = renderAdminRequests(); break;
     case 'admin-deploy': app.innerHTML = renderAdminDeploy(); break;
+    case 'admin-locations': app.innerHTML = renderAdminLocations(); break;
     case 'admin-notes': app.innerHTML = renderAdminNotes(); break;
     default: app.innerHTML = renderLogin();
   }
@@ -1747,30 +1762,25 @@ function _depHdr() {
 function _renderLocOptions(i, text) {
   const p = STATE.players[_depPid||currentPlayer];
   if(!p) return '';
-  const playerLocs = getPlayerLocations(p);
-  const structs = (p.structures||[]).filter(s=>s.name&&s.name.trim());
   const q = (text||'').toLowerCase().trim();
-  const filtP = q ? PLANETS.filter(l=>l.toLowerCase().includes(q)) : PLANETS;
-  const filtS = q ? structs.filter(s=>s.name.toLowerCase().includes(q)||((s.location||'').toLowerCase().includes(q))) : structs;
-  const filtU = q ? playerLocs.filter(l=>l.toLowerCase().includes(q)) : playerLocs;
+  const managed = getLocationsFor(p.id);
+  const structs = (p.structures||[]).filter(s=>s.name&&s.name.trim());
+  const managedNames = new Set(managed.map(l=>l.name));
   let html = '';
-  if(filtP.length) {
-    html += `<div class="loc-sec">Planets</div>`;
-    html += filtP.map(l=>`<div class="loc-opt" onclick="event.stopPropagation();_depSelectLoc(${i},'${l.replace(/'/g,"\\'")}')">${esc(l)}</div>`).join('');
-  }
+  ['Planet','Character','Structure'].forEach(cls => {
+    const items = managed.filter(l=>l.classification===cls&&(!q||l.name.toLowerCase().includes(q)));
+    if(!items.length) return;
+    html += `<div class="loc-sec">${LOC_ICON[cls]} ${cls}s</div>`;
+    html += items.map(l=>`<div class="loc-opt" onclick="event.stopPropagation();_depSelectLoc(${i},'${l.name.replace(/'/g,"\\'")}')"> ${esc(l.name)}</div>`).join('');
+  });
+  const filtS = q ? structs.filter(s=>s.name.toLowerCase().includes(q)) : structs;
   if(filtS.length) {
-    html += `<div class="loc-sec">Structures</div>`;
-    html += filtS.map(s=>`<div class="loc-opt" onclick="event.stopPropagation();_depSelectLoc(${i},'${s.name.replace(/'/g,"\\'")}')" style="display:flex;justify-content:space-between;gap:8px"><span>🏛 ${esc(s.name)}</span><span class="dim" style="font-size:11px">${esc(s.location||'?')}</span></div>`).join('');
+    html += `<div class="loc-sec">🏛 Your Structures</div>`;
+    html += filtS.map(s=>`<div class="loc-opt" onclick="event.stopPropagation();_depSelectLoc(${i},'${s.name.replace(/'/g,"\\'")}')"><span>🏛 ${esc(s.name)}</span><span class="dim" style="font-size:11px;margin-left:8px">${esc(s.location||'')}</span></div>`).join('');
   }
-  if(filtU.length) {
-    html += `<div class="loc-sec">Other Locations</div>`;
-    html += filtU.map(l=>`<div class="loc-opt" onclick="event.stopPropagation();_depSelectLoc(${i},'${l.replace(/'/g,"\\'")}')">${esc(l)}</div>`).join('');
-  }
-  const allLocs = [...PLANETS,...structs.map(s=>s.name),...playerLocs];
-  const exactExists = allLocs.some(l=>l.toLowerCase()===q);
-  if(text&&!exactExists) {
-    html += `<div class="loc-opt loc-create" onclick="event.stopPropagation();_depSelectLoc(${i},'${text.replace(/'/g,"\\'").replace(/"/g,'\\"')}')">+ Create &ldquo;${esc(text)}&rdquo;</div>`;
-  }
+  const allNames = [...managed.map(l=>l.name),...structs.map(s=>s.name)];
+  const exactExists = allNames.some(n=>n.toLowerCase()===q);
+  if(text&&!exactExists) html += `<div class="loc-opt loc-create" onclick="event.stopPropagation();_depSelectLoc(${i},'${text.replace(/'/g,"\\'").replace(/"/g,'\\"')}')">+ Create &ldquo;${esc(text)}&rdquo;</div>`;
   if(!html) html = `<div class="loc-opt" style="color:var(--text2);cursor:default">No locations found</div>`;
   return html;
 }
@@ -1878,13 +1888,15 @@ function _alpKey(pid, idx) { return pid + '_' + idx; }
 function _alpOpts(pid, idx, text) {
   const p = STATE.players[pid]; if(!p) return '';
   const q = (text||'').toLowerCase().trim();
-  const playerLocs = getPlayerLocations(p);
-  const filtP = q ? PLANETS.filter(l=>l.toLowerCase().includes(q)) : PLANETS;
-  const filtU = q ? playerLocs.filter(l=>l.toLowerCase().includes(q)) : playerLocs;
+  const managed = getLocationsFor(pid);
   let html = '';
-  if(filtP.length) { html += `<div class="loc-sec">Planets</div>`+filtP.map(l=>`<div class="loc-opt" onclick="event.stopPropagation();_alpSelect('${pid}',${idx},'${l.replace(/'/g,"\\'")}')"> ${esc(l)}</div>`).join(''); }
-  if(filtU.length) { html += `<div class="loc-sec">Other Locations</div>`+filtU.map(l=>`<div class="loc-opt" onclick="event.stopPropagation();_alpSelect('${pid}',${idx},'${l.replace(/'/g,"\\'")}')"> ${esc(l)}</div>`).join(''); }
-  const exactExists = [...PLANETS,...playerLocs].some(l=>l.toLowerCase()===q);
+  ['Planet','Character','Structure'].forEach(cls => {
+    const items = managed.filter(l=>l.classification===cls&&(!q||l.name.toLowerCase().includes(q)));
+    if(!items.length) return;
+    html += `<div class="loc-sec">${LOC_ICON[cls]} ${cls}s</div>`;
+    html += items.map(l=>`<div class="loc-opt" onclick="event.stopPropagation();_alpSelect('${pid}',${idx},'${l.name.replace(/'/g,"\\'")}')"> ${esc(l.name)}</div>`).join('');
+  });
+  const exactExists = managed.some(l=>l.name.toLowerCase()===q);
   if(text&&!exactExists) html += `<div class="loc-opt loc-create" onclick="event.stopPropagation();_alpSelect('${pid}',${idx},'${text.replace(/'/g,"\\'").replace(/"/g,'\\"')}')">+ Create &ldquo;${esc(text)}&rdquo;</div>`;
   if(!html) html = `<div class="loc-opt" style="color:var(--text2);cursor:default">No locations found</div>`;
   return html;
@@ -2608,8 +2620,9 @@ function addAdminNote(id) {
 let _adminDepSel = null; // currently selected location key, e.g. 'planet::Dromund Kaas' or 'struct::Main Base::pid'
 
 function _getAllGenericLocs() {
-  const locs = new Set([...PLANETS, ...(STATE.customLocations||[])]);
-  // Also include any deployment locations not matching a structure name
+  // All managed locations (admin sees all)
+  const locs = new Set((STATE.locations||[]).map(l=>l.name));
+  // Also pull in any deployed locations not yet in managed list
   const structNames = new Set();
   Object.values(STATE.players).forEach(p=>(p.structures||[]).forEach(s=>{if(s.name)structNames.add(s.name);}));
   Object.values(STATE.players).forEach(p=>{
@@ -2704,17 +2717,16 @@ function renderAdminDeploy() {
   const customSet = new Set(STATE.customLocations||[]);
 
   // Sidebar
+  const locIndex = Object.fromEntries((STATE.locations||[]).map(l=>[l.name,l]));
   const genericItems = generic.map(loc=>{
     const key='generic::'+loc;
     const sel=_adminDepSel===key;
-    const isCustom=customSet.has(loc);
-    const isPlanet=PLANETS.includes(loc);
+    const cls = locIndex[loc]?.classification;
+    const icon = LOC_ICON[cls]||'⭐';
     return `<div onclick="adminSelectLoc('${key.replace(/'/g,"\\'")}');"
       style="display:flex;align-items:center;justify-content:space-between;padding:5px 10px;border-radius:4px;cursor:pointer;background:${sel?'var(--bg3)':'transparent'};border:1px solid ${sel?'var(--gold)':'transparent'}">
-      <span style="color:${sel?'var(--gold)':'var(--text)'}">
-        ${isPlanet?'🌍':'⭐'} ${esc(loc)}
-      </span>
-      ${isCustom?`<span onclick="event.stopPropagation();adminRemoveCustomLoc('${loc.replace(/'/g,"\\'")}');" style="color:var(--text2);cursor:pointer;font-size:10px;padding:0 4px" title="Remove">✕</span>`:''}
+      <span style="color:${sel?'var(--gold)':'var(--text)'}">${icon} ${esc(loc)}</span>
+      ${cls?`<span class="dim" style="font-size:10px">${cls}</span>`:''}
     </div>`;
   }).join('');
 
@@ -2729,12 +2741,11 @@ function renderAdminDeploy() {
   }).join('');
 
   const sidebar = `<div style="width:220px;flex-shrink:0">
-    <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text2);padding:4px 10px 6px">🌍 Generic Locations</div>
-    ${genericItems||'<div class="dim" style="padding:4px 10px;font-size:12px">None</div>'}
-    <div style="display:flex;gap:4px;padding:6px 10px">
-      <input id="new-generic-inp" type="text" placeholder="New location…" style="flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:4px 7px;font-size:12px;font-family:inherit" onkeydown="if(event.key==='Enter')adminAddCustomLoc()">
-      <button class="btn btn-green btn-sm" onclick="adminAddCustomLoc()">+</button>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 10px 6px">
+      <span style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text2)">Locations</span>
+      <button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 6px" onclick="navigate('admin-locations')">Manage</button>
     </div>
+    ${genericItems||'<div class="dim" style="padding:4px 10px;font-size:12px">None</div>'}
     <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text2);padding:10px 10px 6px;border-top:1px solid var(--border);margin-top:4px">🏛 Structures</div>
     ${structItems||'<div class="dim" style="padding:4px 10px;font-size:12px">No structures</div>'}
   </div>`;
@@ -2777,6 +2788,104 @@ function renderAdminDeploy() {
     <div style="padding:12px 0;border-right:1px solid var(--border);overflow-y:auto;max-height:80vh">${sidebar}</div>
     <div style="flex:1;padding:16px;overflow-y:auto">${main}</div>
   </div>`;
+}
+
+// ============================================================
+// ADMIN LOCATIONS
+// ============================================================
+function renderAdminLocations() {
+  const locs = STATE.locations||[];
+  const players = Object.values(STATE.players);
+  const visLabel = v => v==='all'
+    ? '<span class="tag tag-grey">Everyone</span>'
+    : `<span class="tag tag-blue">${esc(STATE.players[v]?.displayName||v)}</span>`;
+
+  let rows = '';
+  ['Planet','Character','Structure'].forEach(cls => {
+    const items = locs.filter(l=>l.classification===cls);
+    if(!items.length) return;
+    rows += `<tr><td colspan="4" style="background:var(--bg);padding:5px 12px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text2)">${LOC_ICON[cls]} ${cls}s (${items.length})</td></tr>`;
+    rows += items.map(l=>`<tr>
+      <td class="gold">${esc(l.name)}</td>
+      <td>${LOC_ICON[l.classification]} ${l.classification}</td>
+      <td>${visLabel(l.visibility)}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-ghost btn-sm" onclick="showLocModal('${l.id}')">Edit</button>
+        <button class="btn btn-red btn-sm" onclick="deleteLoc('${l.id}')">✕</button>
+      </td>
+    </tr>`).join('');
+  });
+  const unclassed = locs.filter(l=>!['Planet','Character','Structure'].includes(l.classification));
+  if(unclassed.length) rows += unclassed.map(l=>`<tr>
+    <td class="gold">${esc(l.name)}</td><td>—</td><td>${visLabel(l.visibility)}</td>
+    <td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" onclick="showLocModal('${l.id}')">Edit</button><button class="btn btn-red btn-sm" onclick="deleteLoc('${l.id}')">✕</button></td>
+  </tr>`).join('');
+  if(!rows) rows = '<tr class="empty-row"><td colspan="4">No locations defined. Use + Add Location to create some.</td></tr>';
+
+  return `<div class="card">
+    <div class="card-title">Locations (${locs.length})
+      <button class="btn btn-green btn-sm" onclick="showLocModal(null)">+ Add Location</button>
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Name</th><th>Classification</th><th>Visible To</th><th>Actions</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+  </div>`;
+}
+
+function showLocModal(id) {
+  const loc = id ? (STATE.locations||[]).find(l=>l.id===id) : null;
+  const players = Object.values(STATE.players);
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'loc-modal-overlay';
+  overlay.innerHTML = `<div class="modal" style="min-width:360px;max-width:480px">
+    <h2 style="margin-bottom:16px">${loc?'Edit':'Add'} Location</h2>
+    <div class="form-row"><label>Name</label>
+      <input type="text" id="loc-m-name" value="${esc(loc?.name||'')}" placeholder="e.g. Dromund Kaas, Lord Rupbert, The Citadel">
+    </div>
+    <div class="form-row"><label>Classification</label>
+      <select id="loc-m-cls">
+        ${['Planet','Character','Structure'].map(c=>`<option value="${c}" ${(loc?.classification||'Planet')===c?'selected':''}>${LOC_ICON[c]} ${c}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-row"><label>Visible To</label>
+      <select id="loc-m-vis">
+        <option value="all" ${(!loc||loc.visibility==='all')?'selected':''}>🌐 Everyone (Generic)</option>
+        ${players.map(p=>`<option value="${p.id}" ${loc?.visibility===p.id?'selected':''}>👤 ${esc(p.displayName)} only</option>`).join('')}
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="document.getElementById('loc-modal-overlay').remove()">Cancel</button>
+      <button class="btn btn-gold" onclick="saveLoc(${id?`'${id}'`:'null'})">Save</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+  setTimeout(()=>document.getElementById('loc-m-name')?.focus(), 50);
+}
+
+function saveLoc(id) {
+  const name = document.getElementById('loc-m-name')?.value.trim();
+  const classification = document.getElementById('loc-m-cls')?.value;
+  const visibility = document.getElementById('loc-m-vis')?.value;
+  if(!name) { notify('Name is required.', true); return; }
+  STATE.locations = STATE.locations||[];
+  if(id) {
+    const loc = STATE.locations.find(l=>l.id===id);
+    if(loc) { loc.name=name; loc.classification=classification; loc.visibility=visibility; }
+  } else {
+    STATE.locations.push({id:newId(), name, classification, visibility});
+  }
+  saveState();
+  document.getElementById('loc-modal-overlay')?.remove();
+  notify(id?'Location updated.':'Location added.');
+  render();
+}
+
+function deleteLoc(id) {
+  if(!confirm('Delete this location?')) return;
+  STATE.locations = (STATE.locations||[]).filter(l=>l.id!==id);
+  saveState(); notify('Location deleted.'); render();
 }
 
 // ============================================================

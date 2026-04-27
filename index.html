@@ -2014,15 +2014,36 @@ function renderApprentices() {
   const ranks = [...new Set(apps.map(a=>a.rank||'Unknown'))];
   const rankCounts = ranks.map(r=>({ rank:r, count:apps.filter(a=>(a.rank||'Unknown')===r).length }));
 
-  const rows = apps.map(a=>`<tr>
-    <td class="gold">${esc(a.name)}</td>
-    <td><span class="tag tag-red">${esc(a.rank||'')}</span></td>
-    <td>${esc(a.specialization||'')}</td>
-    <td>${esc(a.form||'')}</td>
-    <td class="dim">${esc(a.location||'')}</td>
-    <td class="dim" style="max-width:220px">${esc(a.fightingStyle||'')}</td>
-    <td class="dim" style="max-width:220px">${esc(a.description||'')}</td>
-  </tr>`).join('');
+  const cards = apps.map(a=>{
+    const equipItems = (a.equipment||'').split('\n').map(s=>s.trim()).filter(Boolean);
+    return `
+    <div style="display:flex;gap:16px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:12px">
+      <div style="width:110px;flex-shrink:0">
+        ${a.imageUrl
+          ? `<img src="${a.imageUrl}" style="width:110px;height:150px;object-fit:cover;object-position:top;border-radius:4px;border:1px solid var(--border);display:block">`
+          : `<div style="width:110px;height:150px;background:var(--bg2);border:1px solid var(--border);border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--text2);font-size:11px;text-align:center">No Image</div>`}
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+          <span style="color:var(--gold);font-size:15px;font-weight:700">${esc(a.name)}</span>
+          <span class="tag tag-red">${esc(a.rank||'')}</span>
+          ${a.location?`<span class="dim" style="font-size:12px">${esc(a.location)}</span>`:''}
+        </div>
+        <div style="font-size:12px;margin-bottom:8px;display:flex;gap:16px;flex-wrap:wrap">
+          ${a.form?`<span><span style="color:var(--text2);text-transform:uppercase;font-size:10px;letter-spacing:1px">Form </span>${esc(a.form)}</span>`:''}
+          ${a.specialization?`<span><span style="color:var(--text2);text-transform:uppercase;font-size:10px;letter-spacing:1px">Spec </span>${esc(a.specialization)}</span>`:''}
+        </div>
+        ${a.fightingStyle?`<div style="margin-bottom:8px"><div style="color:var(--text2);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">Fighting Style</div><div style="font-size:13px">${esc(a.fightingStyle)}</div></div>`:''}
+        ${a.description?`<div><div style="color:var(--text2);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">Description</div><div class="dim" style="font-size:13px">${esc(a.description)}</div></div>`:''}
+      </div>
+      <div style="width:200px;flex-shrink:0;border-left:1px solid var(--border);padding-left:14px">
+        <div style="color:var(--text2);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Equipment</div>
+        ${equipItems.length
+          ? equipItems.map(eq=>`<div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:4px;font-size:12px"><span style="color:var(--gold);margin-top:1px">—</span><span>${esc(eq)}</span></div>`).join('')
+          : `<div class="dim" style="font-size:12px;font-style:italic">None</div>`}
+      </div>
+    </div>`;
+  }).join('');
 
   return `
   <div class="grid${Math.min(rankCounts.length+1,4)}" style="margin-bottom:16px">
@@ -2031,14 +2052,7 @@ function renderApprentices() {
   </div>
   <div class="card">
     <div class="card-title">Apprentices</div>
-    <div class="tbl-wrap">
-      <table>
-        <thead><tr>
-          <th>Name</th><th>Rank</th><th>Specialization</th><th>Form</th><th>Location</th><th>Fighting Style</th><th>Description</th>
-        </tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">${cards}</div>
   </div>`;
 }
 
@@ -2264,7 +2278,7 @@ function renderAdminPlayers() {
       ${adminPlayerTab==='income'?renderAdminIncomeEdit(p):''}
       ${adminPlayerTab==='populations'?renderAdminPopEdit(p):''}
       ${adminPlayerTab==='trophies'?renderAdminListEdit(p,'trophies','Trophies',['name','number','aura','description','conflict','claimedFrom']):''}
-      ${adminPlayerTab==='apprentices'?renderAdminListEdit(p,'apprentices','Apprentices',['name','form','rank','specialization','location','description']):''}
+      ${adminPlayerTab==='apprentices'?renderAdminApprenticeEdit(p):''}
       ${adminPlayerTab==='artifacts'?renderAdminListEdit(p,'artifacts','Artifact Collection',['name','number','quality','description','effects']):''}
     `;
   }
@@ -2356,6 +2370,65 @@ function clearCharImage(pid) {
   saveState();
   notify('Image removed.');
   render();
+}
+
+function handleApprenticeImagePaste(e, pid, idx) {
+  e.preventDefault();
+  const items = e.clipboardData && e.clipboardData.items;
+  if(!items) return;
+  for(let i=0;i<items.length;i++) {
+    if(items[i].type.startsWith('image/')) {
+      const blob = items[i].getAsFile();
+      const reader = new FileReader();
+      reader.onload = function(ev) {
+        STATE.players[pid].apprentices[idx].imageUrl = ev.target.result;
+        saveState(); notify('Apprentice image saved.'); render();
+      };
+      reader.readAsDataURL(blob);
+      return;
+    }
+  }
+  notify('No image found in clipboard.');
+}
+
+function clearApprenticeImage(pid, idx) {
+  STATE.players[pid].apprentices[idx].imageUrl = '';
+  saveState(); notify('Image removed.'); render();
+}
+
+function renderAdminApprenticeEdit(p) {
+  const list = p.apprentices||[];
+  const fields = ['name','rank','specialization','form','location','fightingStyle','description','equipment'];
+  const labels = { name:'Name', rank:'Rank', specialization:'Spec', form:'Form', location:'Location', fightingStyle:'Fighting Style', description:'Description', equipment:'Equipment (one per line)' };
+  return `<div class="card">
+    <div class="card-title">Apprentices (${list.length})
+      <button class="btn btn-green btn-sm" onclick="adminAddRow('${p.id}','apprentices')">+ Add Row</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      ${list.map((row,idx)=>`
+        <div style="display:flex;gap:12px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:10px;align-items:flex-start">
+          <div style="width:90px;flex-shrink:0">
+            <div class="img-paste-zone" style="min-height:0;height:120px;padding:8px;width:90px;box-sizing:border-box" tabindex="0"
+                 onclick="this.focus()" onpaste="handleApprenticeImagePaste(event,'${p.id}',${idx})">
+              ${row.imageUrl
+                ? `<img src="${row.imageUrl}" style="max-height:90px;width:100%;border-radius:3px;object-fit:cover;object-position:top;display:block">
+                   <button class="btn btn-red btn-sm" style="margin-top:4px;font-size:10px;width:100%" onclick="event.stopPropagation();clearApprenticeImage('${p.id}',${idx})">✕ Remove</button>`
+                : `<div class="paste-hint" style="font-size:11px">Click, then<br>Ctrl+V image</div>`}
+            </div>
+          </div>
+          <div style="flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:6px">
+            ${fields.map(f=>`<div>
+              <label style="font-size:10px;margin-bottom:2px">${labels[f]}</label>
+              <textarea class="admin-ta" onfocus="adminTaFocus(this)" onblur="adminTaBlur(this)" onchange="adminUpdateCell('${p.id}','apprentices',${idx},'${f}',this.value)">${esc(row[f]||'')}</textarea>
+            </div>`).join('')}
+          </div>
+          <div>
+            <button class="btn btn-red btn-sm" onclick="adminDeleteRow('${p.id}','apprentices',${idx})">✕</button>
+          </div>
+        </div>`).join('')}
+      ${list.length===0?`<div class="dim" style="padding:12px;text-align:center;font-style:italic">No apprentices — use + Add Row above.</div>`:''}
+    </div>
+  </div>`;
 }
 
 function saveAdminCharacter(pid) {

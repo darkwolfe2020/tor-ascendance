@@ -194,7 +194,7 @@
 // DATA MODEL
 // ============================================================
 const DEFAULT_ADMIN_PASSWORD = 'rta2024';
-const DATA_VERSION = 7;
+const DATA_VERSION = 8;
 
 // ============================================================
 // SUPABASE (data only — no auth)
@@ -247,6 +247,17 @@ function migrateState(state) {
       ...customs.map(name=>({id:newId(),name,classification:'Planet',visibility:'all'}))
     ];
   }
+  // Migrate populations: totalGdp/taxes → taxPercent (calculated)
+  Object.values(state.players||{}).forEach(p => {
+    (p.populations||[]).forEach(row => {
+      if(row.taxPercent === undefined) {
+        const gdp = (row.gdpPerCapita||0) * (row.adultPop||0);
+        row.taxPercent = gdp > 0 ? Math.round(((row.taxes||0) / gdp) * 100) : 0;
+      }
+      delete row.totalGdp;
+      delete row.taxes;
+    });
+  });
   return state;
 }
 
@@ -290,7 +301,7 @@ function buildSeedState() {
     ],
     [],
     [
-      { id:newId(), name:'Cathartopia', adultPop:4100, loyalty:'Low', gdpPerCapita:80, totalGdp:328000, taxes:0, additionalInfo:'' }
+      { id:newId(), name:'Cathartopia', adultPop:4100, loyalty:'Low', gdpPerCapita:80, taxPercent:0, additionalInfo:'' }
     ],
     [], [], []
   );
@@ -435,9 +446,9 @@ function buildSeedState() {
       { id:newId(), name:'Arachnid Droid Mk1: Black Widow', quantity:3,  cycle:'Monthly', origin:'BF L4', estimatedValue:35000, totalValue:105000 }
     ],
     [
-      { id:newId(), name:'Beregan (Voln)', adultPop:1350, loyalty:'High', gdpPerCapita:400, totalGdp:540000, taxes:0, additionalInfo:'Has a Quarry providing 50,000 worth of luxury marble per report cycle.' },
-      { id:newId(), name:'Fela', adultPop:8400, loyalty:'Low', gdpPerCapita:250, totalGdp:2100000, taxes:21000, additionalInfo:'Farming Town, Taxed at 12%' },
-      { id:newId(), name:'Moria', adultPop:27000, loyalty:'Medium', gdpPerCapita:320, totalGdp:8640000, taxes:86400, additionalInfo:'Urban Settlement, Taxed at 12%' }
+      { id:newId(), name:'Beregan (Voln)', adultPop:1350, loyalty:'High', gdpPerCapita:400, taxPercent:0, additionalInfo:'Has a Quarry providing 50,000 worth of luxury marble per report cycle.' },
+      { id:newId(), name:'Fela', adultPop:8400, loyalty:'Low', gdpPerCapita:250, taxPercent:1, additionalInfo:'Farming Town' },
+      { id:newId(), name:'Moria', adultPop:27000, loyalty:'Medium', gdpPerCapita:320, taxPercent:1, additionalInfo:'Urban Settlement' }
     ],
     [
       { id:newId(), name:"Lord Veylan's Lightsaber and Shoto", number:1, aura:'High', description:'The Lightsaber and Shoto of Lord Veylan, claimed from his corpse after the Okara Factory Battle.', conflict:'The Okara Factory Raid', claimedFrom:'Lord Veylan' },
@@ -534,7 +545,7 @@ function buildSeedState() {
       { id:newId(), name:'Lord Krol Pay', quantity:1, income:0, upkeep:10000, net:-10000, totalNet:-10000 }
     ],
     [],
-    [{ id:newId(), name:'Unbound Followers', adultPop:1500, loyalty:'Fanatic (Low)', gdpPerCapita:40, totalGdp:60000, taxes:0, additionalInfo:'' }],
+    [{ id:newId(), name:'Unbound Followers', adultPop:1500, loyalty:'Fanatic (Low)', gdpPerCapita:40, taxPercent:0, additionalInfo:'' }],
     [
       { id:newId(), name:"Raylon Nys' Lightsaber", number:1, aura:'Medium', description:'', conflict:'', claimedFrom:'' },
       { id:newId(), name:"Raylon Nys' Skull", number:1, aura:'High', description:'', conflict:'', claimedFrom:'' },
@@ -973,6 +984,7 @@ function render() {
       <button class="nav-btn ${currentView==='assets'?'active':''}" onclick="navigate('assets')">Assets &amp; Forces</button>
       <button class="nav-btn ${currentView==='deployed'?'active':''}" onclick="navigate('deployed')">Deployed Forces</button>
       <button class="nav-btn ${currentView==='finance'?'active':''}" onclick="navigate('finance')">Finance</button>
+      <button class="nav-btn ${currentView==='population'?'active':''}" onclick="navigate('population')">Population</button>
       <button class="nav-btn ${currentView==='shop'?'active':''}" onclick="navigate('shop')">Shop</button>
     `;
   } else if(isAdmin) {
@@ -1001,6 +1013,7 @@ function render() {
     case 'assets': app.innerHTML = renderAssets(); break;
     case 'deployed': app.innerHTML = renderDeployed(); break;
     case 'finance': app.innerHTML = renderFinance(); break;
+    case 'population': app.innerHTML = renderPopulation(); break;
     case 'shop': app.innerHTML = renderShop(); break;
     case 'admin-overview': app.innerHTML = renderAdminOverview(); break;
     case 'admin-players': app.innerHTML = renderAdminPlayers(); break;
@@ -1896,15 +1909,6 @@ function renderFinance() {
     <td class="td-num pos">${fmtC(r.totalValue)}</td>
   </tr>`).join('');
 
-  const popRows = (p.populations||[]).map(row => `<tr>
-    <td class="gold">${esc(row.name)}</td>
-    <td>${fmt(row.adultPop)}</td>
-    <td><span class="loyalty-${row.loyalty?row.loyalty.toLowerCase():''}">${esc(row.loyalty)}</span></td>
-    <td class="td-num">${fmtC(row.gdpPerCapita)}</td>
-    <td class="td-num">${fmtC(row.totalGdp)}</td>
-    <td class="td-num pos">${fmtC(row.taxes)}</td>
-    <td class="dim">${esc(row.additionalInfo)}</td>
-  </tr>`).join('');
 
   return `
   <div class="grid3" style="margin-bottom:16px">
@@ -1932,14 +1936,71 @@ function renderFinance() {
       <tbody>${prodRows}</tbody>
     </table></div>
   </div>`:''}
-  ${p.populations&&p.populations.length?`<div class="card">
-    <div class="card-title">Population Centers</div>
-    <div class="tbl-wrap"><table>
-      <thead><tr><th>Name</th><th>Adult Population</th><th>Loyalty</th><th class="td-num">GDP per Capita</th><th class="td-num">Total GDP</th><th class="td-num">Taxes</th><th>Notes</th></tr></thead>
-      <tbody>${popRows}</tbody>
-    </table></div>
-  </div>`:''}
   `;
+}
+
+// ============================================================
+// POPULATION
+// ============================================================
+function renderPopulation() {
+  const p = STATE.players[currentPlayer];
+  if(!p) return '<div class="card">No player data.</div>';
+  const pops = p.populations||[];
+  if(!pops.length) return `<div class="card"><div class="card-title">Population Centers</div><div class="dim" style="padding:12px">No population data.</div></div>`;
+
+  let totalPop=0, totalGdp=0, totalTax=0;
+  const rows = pops.map(row=>{
+    const gdp = (row.gdpPerCapita||0) * (row.adultPop||0);
+    const tax = Math.round((row.taxPercent||0) / 100 * gdp);
+    totalPop += (row.adultPop||0);
+    totalGdp += gdp;
+    totalTax += tax;
+    return `<tr>
+      <td class="gold">${esc(row.name)}</td>
+      <td class="td-num">${fmt(row.adultPop||0)}</td>
+      <td><span class="loyalty-${(row.loyalty||'').toLowerCase()}">${esc(row.loyalty||'')}</span></td>
+      <td class="td-num">${fmtC(row.gdpPerCapita||0)}</td>
+      <td class="td-num gold">${fmtC(gdp)}</td>
+      <td class="td-num">${(row.taxPercent||0).toFixed(1)}%</td>
+      <td class="td-num pos">${fmtC(tax)}</td>
+      <td class="dim">${esc(row.additionalInfo||'')}</td>
+    </tr>`;
+  }).join('');
+
+  return `
+  <div class="grid3" style="margin-bottom:16px">
+    <div class="stat-box"><div class="label">Total Population</div><div class="value">${fmt(totalPop)}</div></div>
+    <div class="stat-box"><div class="label">Total GDP</div><div class="value">${fmtC(totalGdp)}</div></div>
+    <div class="stat-box"><div class="label">Total Tax Income</div><div class="value pos">${fmtC(totalTax)}</div></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Population Centers</div>
+    <div class="tbl-wrap">
+      <table style="width:100%;table-layout:fixed">
+        <colgroup>
+          <col style="width:140px">
+          <col style="width:80px">
+          <col style="width:90px">
+          <col style="width:80px">
+          <col style="width:90px">
+          <col style="width:55px">
+          <col style="width:90px">
+          <col>
+        </colgroup>
+        <thead><tr>
+          <th>Name</th>
+          <th class="td-num">Population</th>
+          <th>Loyalty</th>
+          <th class="td-num">GDP/Capita</th>
+          <th class="td-num">GDP</th>
+          <th class="td-num">Tax%</th>
+          <th class="td-num">Tax Income</th>
+          <th>Additional Info</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  </div>`;
 }
 
 // ============================================================
@@ -2359,7 +2420,7 @@ function adminUpdateCell(pid, listKey, idx, field, value) {
   if(!p||!p[listKey]) return;
   const item = p[listKey][idx];
   if(!item) return;
-  item[field] = ['quantity','deployed','undeployed','strength','number','adultPop','gdpPerCapita','totalGdp','taxes'].includes(field) ? unNum(value) : value;
+  item[field] = ['quantity','deployed','undeployed','strength','number','adultPop','gdpPerCapita','taxPercent'].includes(field) ? unNum(value) : value;
   saveState();
 }
 function adminDeleteRow(pid, listKey, idx) {
@@ -2420,26 +2481,53 @@ function adminUpdateIncomeRow(pid, idx, field, value) {
 
 function renderAdminPopEdit(p) {
   const list = p.populations||[];
-  const fields = ['name','adultPop','loyalty','gdpPerCapita','totalGdp','taxes','additionalInfo'];
   return `<div class="card">
     <div class="card-title">Populations (${list.length})
       <button class="btn btn-green btn-sm" onclick="adminAddPopRow('${p.id}')">+ Add</button>
     </div>
-    <div class="tbl-wrap"><table>
-      <thead><tr>${fields.map(f=>`<th>${f}</th>`).join('')}<th></th></tr></thead>
+    <div class="tbl-wrap"><table style="width:100%;table-layout:fixed">
+      <colgroup>
+        <col style="width:120px">
+        <col style="width:80px">
+        <col style="width:90px">
+        <col style="width:80px">
+        <col style="width:90px">
+        <col style="width:55px">
+        <col style="width:90px">
+        <col>
+        <col style="width:34px">
+      </colgroup>
+      <thead><tr>
+        <th>Name</th><th>Population</th><th>Loyalty</th><th>GDP/Capita</th>
+        <th style="color:var(--text2)">GDP (calc)</th>
+        <th>Tax%</th>
+        <th style="color:var(--text2)">Tax Income (calc)</th>
+        <th>Additional Info</th><th></th>
+      </tr></thead>
       <tbody>
-        ${list.map((row,idx)=>`<tr>
-          ${fields.map(f=>{const isNum=['adultPop','gdpPerCapita','totalGdp','taxes'].includes(f);return isNum?`<td><input type="text" value="${fmtNum(row[f]||0)}" style="min-width:80px" oninput="numInput(this)" inputmode="numeric" onchange="adminUpdateCell('${p.id}','populations',${idx},'${f}',this.value)"></td>`:`<td><textarea class="admin-ta" style="min-width:80px" onfocus="adminTaFocus(this)" onblur="adminTaBlur(this)" onchange="adminUpdateCell('${p.id}','populations',${idx},'${f}',this.value)">${esc(row[f]||'')}</textarea></td>`;}).join('')}
-          <td><button class="btn btn-red btn-sm" onclick="adminDeleteRow('${p.id}','populations',${idx})">✕</button></td>
-        </tr>`).join('')}
-        ${list.length===0?`<tr class="empty-row"><td colspan="${fields.length+1}">No populations.</td></tr>`:''}
+        ${list.map((row,idx)=>{
+          const gdp=(row.gdpPerCapita||0)*(row.adultPop||0);
+          const tax=Math.round((row.taxPercent||0)/100*gdp);
+          return `<tr>
+            <td><textarea class="admin-ta" onfocus="adminTaFocus(this)" onblur="adminTaBlur(this)" onchange="adminUpdateCell('${p.id}','populations',${idx},'name',this.value)">${esc(row.name||'')}</textarea></td>
+            <td><input type="text" value="${fmtNum(row.adultPop||0)}" oninput="numInput(this)" inputmode="numeric" onchange="adminUpdateCell('${p.id}','populations',${idx},'adultPop',this.value)"></td>
+            <td><textarea class="admin-ta" onfocus="adminTaFocus(this)" onblur="adminTaBlur(this)" onchange="adminUpdateCell('${p.id}','populations',${idx},'loyalty',this.value)">${esc(row.loyalty||'')}</textarea></td>
+            <td><input type="text" value="${fmtNum(row.gdpPerCapita||0)}" oninput="numInput(this)" inputmode="numeric" onchange="adminUpdateCell('${p.id}','populations',${idx},'gdpPerCapita',this.value)"></td>
+            <td class="td-num dim" style="font-size:12px">${fmtC(gdp)}</td>
+            <td><input type="text" value="${(row.taxPercent||0)}" style="text-align:right" inputmode="decimal" onchange="adminUpdateCell('${p.id}','populations',${idx},'taxPercent',this.value)"></td>
+            <td class="td-num dim" style="font-size:12px;color:var(--green)">${fmtC(tax)}</td>
+            <td><textarea class="admin-ta" onfocus="adminTaFocus(this)" onblur="adminTaBlur(this)" onchange="adminUpdateCell('${p.id}','populations',${idx},'additionalInfo',this.value)">${esc(row.additionalInfo||'')}</textarea></td>
+            <td><button class="btn btn-red btn-sm" onclick="adminDeleteRow('${p.id}','populations',${idx})">✕</button></td>
+          </tr>`;
+        }).join('')}
+        ${list.length===0?`<tr class="empty-row"><td colspan="9">No populations.</td></tr>`:''}
       </tbody>
     </table></div>
   </div>`;
 }
 function adminAddPopRow(pid) {
   STATE.players[pid].populations = STATE.players[pid].populations||[];
-  STATE.players[pid].populations.push({ id:newId(), name:'New Territory', adultPop:0, loyalty:'Medium', gdpPerCapita:0, totalGdp:0, taxes:0, additionalInfo:'' });
+  STATE.players[pid].populations.push({ id:newId(), name:'New Territory', adultPop:0, loyalty:'Medium', gdpPerCapita:0, taxPercent:0, additionalInfo:'' });
   saveState(); render();
 }
 

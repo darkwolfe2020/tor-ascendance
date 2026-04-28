@@ -2863,7 +2863,16 @@ function showShopItemModal(id) {
       </div>
     </div>
     <div class="form-row"><label>Price (credits)</label><input id="si-price" type="number" value="${item?.price||0}"></div>
-    <div class="form-row"><label>Unit</label><input id="si-unit" type="text" value="${esc(item?.unit||'unit')}"></div>
+    <div class="form-row"><label>Adds to player's…</label>
+      <select id="si-unit">
+        <option value="">— None (no unit added on approval) —</option>
+        <option value="formations"  ${(item?.unit||'')==='formations' ?'selected':''}>Formations</option>
+        <option value="assets"      ${(item?.unit||'')==='assets'     ?'selected':''}>Assets</option>
+        <option value="ships"       ${(item?.unit||'')==='ships'      ?'selected':''}>Ships</option>
+        <option value="structures"  ${(item?.unit||'')==='structures' ?'selected':''}>Structures</option>
+        <option value="miscItems"   ${(item?.unit||'')==='miscItems'  ?'selected':''}>Misc Items</option>
+      </select>
+    </div>
     <div class="form-row"><label>Description</label><textarea id="si-desc">${esc(item?.description||'')}</textarea></div>
     <div class="form-row"><label>Prerequisite</label><input id="si-prereq" type="text" value="${esc(item?.prerequisite||'')}"></div>
     <div class="modal-actions">
@@ -2985,7 +2994,26 @@ function approveRequest(id) {
   }
   req.status = 'approved';
   p.finances.balance -= req.totalCost;
-  saveState(); notify(`Approved. ${fmt(req.totalCost)} deducted from ${p.displayName}.`); render();
+
+  // Add unit to player's list if the shop item specifies one
+  const shopItem = (STATE.shopItems||[]).find(i=>i.id===req.itemId);
+  const validLists = ['formations','assets','ships','structures','miscItems'];
+  if(shopItem && validLists.includes(shopItem.unit)) {
+    const listKey = shopItem.unit;
+    p[listKey] = p[listKey]||[];
+    const newItem = { id:newId(), name:shopItem.name, quantity:req.quantity, category:shopItem.category||'', description:shopItem.description||'', misc:'' };
+    if(listKey === 'formations')  { newItem.strength=''; newItem.deployments=[]; newItem.undeployed=req.quantity; }
+    if(listKey === 'assets')      { newItem.deployments=[]; newItem.undeployed=req.quantity; }
+    if(listKey === 'ships')       { newItem.class=''; newItem.role=''; newItem.specifications=''; newItem.deployments=[]; newItem.undeployed=req.quantity; }
+    if(listKey === 'structures')  { newItem.location=''; newItem.locationNote=''; newItem.attachedForces=''; }
+    if(listKey === 'miscItems')   { newItem.deployments=[]; newItem.undeployed=req.quantity; }
+    p[listKey].push(newItem);
+    notify(`Approved — ${shopItem.name} ×${req.quantity} added to ${p.displayName}'s ${listKey}.`);
+  } else {
+    notify(`Approved. ${fmtC(req.totalCost)} deducted from ${p.displayName}.`);
+  }
+
+  saveState(); render();
 }
 function denyRequest(id) {
   const req = STATE.purchaseRequests.find(r=>r.id===id);

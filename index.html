@@ -826,6 +826,7 @@ function buildSeedState() {
     players,
     shopItems,
     purchaseRequests: [],
+    deploymentRequests: [],
     locations: PLANETS.map(name=>({id:newId(),name,classification:'Planet',visibility:'all'})),
     adminPassword: DEFAULT_ADMIN_PASSWORD,
     adminNotes: ''
@@ -1116,7 +1117,9 @@ function render() {
 }
 
 function pendingCount() {
-  return (STATE.purchaseRequests||[]).filter(r=>r.status==='pending').length;
+  const p = (STATE.purchaseRequests||[]).filter(r=>r.status==='pending').length;
+  const d = (STATE.deploymentRequests||[]).filter(r=>r.status==='pending').length;
+  return p + d;
 }
 
 
@@ -1918,9 +1921,15 @@ function _renderDepModal() {
       <label>General Notes</label>
       <input type="text" id="dep-misc" value="${esc(item.misc||'')}" placeholder="Any additional notes">
     </div>
+    ${!isAdmin ? `<div class="form-row">
+      <label>Request Note <span class="dim" style="font-size:11px">(explain your redeployment to the GM)</span></label>
+      <input type="text" id="dep-req-note" placeholder="e.g. Moving forces to Balmorra for the upcoming campaign">
+    </div>` : ''}
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="document.getElementById('dep-modal-overlay').remove()">Cancel</button>
-      <button class="btn btn-gold" onclick="_saveDepModal()">Save</button>
+      ${isAdmin
+        ? `<button class="btn btn-gold" onclick="_saveDepModal()">Save</button>`
+        : `<button class="btn btn-gold" onclick="_submitDepRequest()">Submit Request</button>`}
     </div>
   </div>`;
 }
@@ -1972,6 +1981,37 @@ function _saveDepModal() {
   document.getElementById('dep-modal-overlay').remove();
   saveState();
   notify('Repositioned: '+item.name);
+  render();
+}
+
+function _submitDepRequest() {
+  const p = STATE.players[currentPlayer];
+  const item = p[_depListKey].find(x=>x.id===_depItemId);
+  if(!item) return;
+  const totalDep = _depEdits.reduce((s,d)=>s+(Number(d.qty)||0),0);
+  if(totalDep>item.quantity){ notify('Deployed ('+totalDep+') exceeds quantity ('+item.quantity+')',true); return; }
+  const note = (document.getElementById('dep-req-note')||{}).value||'';
+  const req = {
+    id: newId(),
+    type: 'deployment',
+    playerId: currentPlayer,
+    playerName: p.displayName,
+    listKey: _depListKey,
+    itemId: _depItemId,
+    itemName: item.name,
+    currentDeployments: JSON.parse(JSON.stringify(item.deployments||[])),
+    proposedDeployments: _depEdits.filter(d=>d.qty>0||d.location).map(d=>({location:d.location||'',qty:Number(d.qty)||0,note:d.note||''})),
+    proposedUndeployed: item.quantity - totalDep,
+    proposedMisc: (document.getElementById('dep-misc')||{}).value||item.misc||'',
+    note,
+    status: 'pending',
+    date: new Date().toISOString()
+  };
+  STATE.deploymentRequests = STATE.deploymentRequests||[];
+  STATE.deploymentRequests.push(req);
+  document.getElementById('dep-modal-overlay').remove();
+  saveState();
+  notify('Redeployment request submitted!');
   render();
 }
 
@@ -2613,9 +2653,11 @@ function renderAdminListEdit(p, listKey, title, fields) {
       <tbody>
         ${list.map((row,idx)=>`<tr>
           ${fields.map(f=>{const isNum=['quantity','deployed','undeployed','strength','number'].includes(f);const w=colWidth[f]?'calc('+colWidth[f]+' - 20px)':'80px';if(listKey==='structures'&&f==='location')return`<td><div class="loc-selector" style="min-width:${w}">${_alpCellHtml(p.id,idx,row.location||'')}</div></td>`;return isNum?`<td><input type="text" value="${fmtNum(row[f]||0)}" style="min-width:${w}" oninput="numInput(this)" inputmode="numeric" onchange="adminUpdateCell('${p.id}','${listKey}',${idx},'${f}',this.value)"></td>`:`<td><textarea class="admin-ta" style="min-width:${w}" onfocus="adminTaFocus(this)" onblur="adminTaBlur(this)" onchange="adminUpdateCell('${p.id}','${listKey}',${idx},'${f}',this.value)">${esc(row[f]||'')}</textarea></td>`;}).join('')}
-          <td style="white-space:nowrap">
-            ${canMove?`<select style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:4px;padding:2px 4px;font-size:11px;font-family:inherit;margin-right:4px" onchange="if(this.value){adminMoveRow('${p.id}','${listKey}',${idx},this.value);this.value=''}"><option value="">↔ Move…</option>${moveOpts}</select>`:''}
-            <button class="btn btn-red btn-sm" onclick="adminDeleteRow('${p.id}','${listKey}',${idx})">✕</button>
+          <td style="white-space:nowrap;vertical-align:top">
+            <div style="display:flex;flex-direction:column;gap:4px;align-items:stretch">
+              ${canMove?`<select style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:4px;padding:2px 4px;font-size:11px;font-family:inherit;width:100%" onchange="if(this.value){adminMoveRow('${p.id}','${listKey}',${idx},this.value);this.value=''}"><option value="">↔ Move…</option>${moveOpts}</select>`:''}
+              <button class="btn btn-red btn-sm" onclick="adminDeleteRow('${p.id}','${listKey}',${idx})">✕ Delete</button>
+            </div>
           </td>
         </tr>`).join('')}
         ${list.length===0?`<tr class="empty-row"><td colspan="${fields.length+1}">No rows — use + Add Row above.</td></tr>`:''}
@@ -2843,8 +2885,9 @@ function deleteShopItem(id) {
 // ADMIN PURCHASE REQUESTS
 // ============================================================
 function renderAdminRequests() {
-  const requests = (STATE.purchaseRequests||[]).slice().reverse();
-  const rows = requests.map(r=>`<tr>
+  // ── Purchase requests ──
+  const purchases = (STATE.purchaseRequests||[]).slice().reverse();
+  const purchaseRows = purchases.map(r=>`<tr>
     <td class="dim" style="font-size:11px">${new Date(r.date).toLocaleDateString()}</td>
     <td class="gold">${esc(r.playerName)}</td>
     <td>${esc(r.itemName)}</td>
@@ -2861,11 +2904,41 @@ function renderAdminRequests() {
     </td>
   </tr>`).join('');
 
-  return `<div class="card">
+  // ── Deployment requests ──
+  const depReqs = (STATE.deploymentRequests||[]).slice().reverse();
+  const depRows = depReqs.map(r => {
+    const proposed = (r.proposedDeployments||[]).map(d=>`${d.qty}× ${d.location||'?'}${d.note?' ('+d.note+')':''}`).join(', ') || 'None';
+    const current  = (r.currentDeployments||[]).map(d=>`${d.qty}× ${d.location||'?'}`).join(', ') || 'None';
+    return `<tr>
+      <td class="dim" style="font-size:11px">${new Date(r.date).toLocaleDateString()}</td>
+      <td class="gold">${esc(r.playerName)}</td>
+      <td>${esc(r.itemName)} <span class="dim" style="font-size:11px">(${esc(r.listKey)})</span></td>
+      <td class="dim" style="font-size:12px">${esc(current)}</td>
+      <td style="font-size:12px">${esc(proposed)}</td>
+      <td class="dim">${esc(r.note||'')}</td>
+      <td><span class="tag ${r.status==='approved'?'tag-green':r.status==='denied'?'tag-red':'tag-gold'}">${r.status}</span></td>
+      <td style="white-space:nowrap">
+        ${r.status==='pending'?`
+          <button class="btn btn-green btn-sm" onclick="approveDeployRequest('${r.id}')">Approve</button>
+          <button class="btn btn-red btn-sm" onclick="denyDeployRequest('${r.id}')">Deny</button>
+        `:'<span class="dim">—</span>'}
+      </td>
+    </tr>`;
+  }).join('');
+
+  return `
+  <div class="card">
     <div class="card-title">Purchase Requests</div>
     <div class="tbl-wrap"><table>
       <thead><tr><th>Date</th><th>Player</th><th>Item</th><th>Qty</th><th class="td-num">Price</th><th class="td-num">Total</th><th>Note</th><th>Status</th><th>Actions</th></tr></thead>
-      <tbody>${rows||'<tr class="empty-row"><td colspan="9">No requests.</td></tr>'}</tbody>
+      <tbody>${purchaseRows||'<tr class="empty-row"><td colspan="9">No purchase requests.</td></tr>'}</tbody>
+    </table></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Redeployment Requests</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Date</th><th>Player</th><th>Unit</th><th>Current</th><th>Proposed</th><th>Note</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody>${depRows||'<tr class="empty-row"><td colspan="8">No redeployment requests.</td></tr>'}</tbody>
     </table></div>
   </div>`;
 }
@@ -2892,6 +2965,33 @@ function addAdminNote(id) {
   if(!req) return;
   const note = prompt('Admin note:', req.adminNote||'');
   if(note !== null) { req.adminNote = note; saveState(); render(); }
+}
+
+function approveDeployRequest(id) {
+  const req = (STATE.deploymentRequests||[]).find(r=>r.id===id);
+  if(!req) return;
+  const p = STATE.players[req.playerId];
+  if(!p) { notify('Player not found', true); return; }
+  const list = p[req.listKey];
+  if(!list) { notify('List not found', true); return; }
+  const item = list.find(x=>x.id===req.itemId);
+  if(!item) { notify('Unit not found', true); return; }
+  item.deployments = req.proposedDeployments;
+  item.undeployed = req.proposedUndeployed;
+  if(req.proposedMisc !== undefined) item.misc = req.proposedMisc;
+  req.status = 'approved';
+  saveState();
+  notify(`Redeployment approved for ${req.itemName}.`);
+  render();
+}
+
+function denyDeployRequest(id) {
+  const req = (STATE.deploymentRequests||[]).find(r=>r.id===id);
+  if(!req) return;
+  req.status = 'denied';
+  saveState();
+  notify('Redeployment request denied.');
+  render();
 }
 
 // ============================================================

@@ -1056,6 +1056,32 @@ async function initApp() {
 }
 
 // ============================================================
+// TABLE SORTING
+// ============================================================
+const _sort = {};
+function _toggleSort(tid, col) {
+  if(_sort[tid] && _sort[tid].col === col) _sort[tid].dir = _sort[tid].dir==='asc'?'desc':'asc';
+  else _sort[tid] = { col, dir:'asc' };
+  render();
+}
+function _sortData(arr, tid) {
+  const s = _sort[tid];
+  if(!s||!s.col) return arr;
+  return [...arr].sort((a,b) => {
+    let av = a[s.col]??'', bv = b[s.col]??'';
+    const an = parseFloat(String(av).replace(/[^0-9.-]/g,'')), bn = parseFloat(String(bv).replace(/[^0-9.-]/g,''));
+    if(!isNaN(an)&&!isNaN(bn)&&String(av).trim()!=='') return s.dir==='asc'?an-bn:bn-an;
+    av=String(av).toLowerCase(); bv=String(bv).toLowerCase();
+    return s.dir==='asc'?av.localeCompare(bv):bv.localeCompare(av);
+  });
+}
+function _th(tid, col, label, extra='') {
+  const s=_sort[tid]; const on=s&&s.col===col;
+  const icon=on?(s.dir==='asc'?' ↑':' ↓'):'<span style="opacity:.22"> ⇅</span>';
+  return `<th ${extra} style="cursor:pointer;user-select:none;white-space:nowrap" onclick="_toggleSort('${tid}','${col}')">${label}${icon}</th>`;
+}
+
+// ============================================================
 // RENDER SHELL
 // ============================================================
 function render() {
@@ -1429,47 +1455,53 @@ function renderFactionSection(p) {
 
 function renderTrophiesSection(p) {
   if(!(p.trophies||[]).length) return '';
+  const tid='trophies';
+  const rows = _sortData(p.trophies||[], tid).map(t=>`<tr>
+    <td class="gold">${esc(t.name)}</td><td>${t.number}</td>
+    <td><span class="tag ${t.aura==='Major'?'tag-gold':t.aura==='High'?'tag-red':'tag-grey'}">${esc(t.aura)}</span></td>
+    <td class="dim">${esc(t.description)}</td><td class="dim">${esc(t.conflict)}</td><td class="dim">${esc(t.claimedFrom)}</td>
+  </tr>`).join('');
   return `<div class="card">
     <div class="card-title">Trophies</div>
     <div class="tbl-wrap"><table>
-      <thead><tr><th>Name</th><th>Qty</th><th>Aura</th><th>Description</th><th>Origin Conflict</th><th>Claimed From</th></tr></thead>
-      <tbody>${p.trophies.map(t=>`<tr>
-        <td class="gold">${esc(t.name)}</td><td>${t.number}</td>
-        <td><span class="tag ${t.aura==='Major'?'tag-gold':t.aura==='High'?'tag-red':'tag-grey'}">${esc(t.aura)}</span></td>
-        <td class="dim">${esc(t.description)}</td><td class="dim">${esc(t.conflict)}</td><td class="dim">${esc(t.claimedFrom)}</td>
-      </tr>`).join('')}</tbody>
+      <thead><tr>${_th(tid,'name','Name')}${_th(tid,'number','Qty','class="td-num"')}${_th(tid,'aura','Aura')}<th>Description</th>${_th(tid,'conflict','Origin Conflict')}${_th(tid,'claimedFrom','Claimed From')}</tr></thead>
+      <tbody>${rows}</tbody>
     </table></div>
   </div>`;
 }
 
 function renderApprenticesSection(p) {
   if(!(p.apprentices||[]).length) return '';
+  const tid='apprenticesSec';
+  const rows = _sortData(p.apprentices||[], tid).map(a=>`<tr>
+    <td class="gold">${esc(a.name)}</td><td>${esc(a.form)}</td>
+    <td><span class="tag tag-red">${esc(a.rank)}</span></td>
+    <td>${esc(a.specialization)}</td><td class="dim">${esc(a.location)}</td>
+    <td class="dim" style="max-width:280px">${esc(a.description)}</td>
+  </tr>`).join('');
   return `<div class="card">
     <div class="card-title">Apprentices</div>
     <div class="tbl-wrap"><table>
-      <thead><tr><th>Name</th><th>Form</th><th>Rank</th><th>Specialization</th><th>Location</th><th>Description</th></tr></thead>
-      <tbody>${p.apprentices.map(a=>`<tr>
-        <td class="gold">${esc(a.name)}</td><td>${esc(a.form)}</td>
-        <td><span class="tag tag-red">${esc(a.rank)}</span></td>
-        <td>${esc(a.specialization)}</td><td class="dim">${esc(a.location)}</td>
-        <td class="dim" style="max-width:280px">${esc(a.description)}</td>
-      </tr>`).join('')}</tbody>
+      <thead><tr>${_th(tid,'name','Name')}<th>Form</th>${_th(tid,'rank','Rank')}${_th(tid,'specialization','Specialization')}${_th(tid,'location','Location')}<th>Description</th></tr></thead>
+      <tbody>${rows}</tbody>
     </table></div>
   </div>`;
 }
 
 function renderArtifactsSection(p) {
   if(!(p.artifacts||[]).length) return '';
+  const tid='artifacts';
+  const rows = _sortData(p.artifacts||[], tid).map(a=>`<tr>
+    <td class="gold">${esc(a.name)}</td><td>${a.number}</td>
+    <td><span class="tag ${a.quality==='Major'?'tag-gold':a.quality==='Normal'?'tag-blue':'tag-grey'}">${esc(a.quality)}</span></td>
+    <td class="dim" style="max-width:220px">${esc(a.description)}</td>
+    <td style="max-width:200px">${esc(a.effects)}</td>
+  </tr>`).join('');
   return `<div class="card">
     <div class="card-title">Artifact Collection</div>
     <div class="tbl-wrap"><table>
-      <thead><tr><th>Name</th><th>Qty</th><th>Quality</th><th>Description</th><th>Effects</th></tr></thead>
-      <tbody>${p.artifacts.map(a=>`<tr>
-        <td class="gold">${esc(a.name)}</td><td>${a.number}</td>
-        <td><span class="tag ${a.quality==='Major'?'tag-gold':a.quality==='Normal'?'tag-blue':'tag-grey'}">${esc(a.quality)}</span></td>
-        <td class="dim" style="max-width:220px">${esc(a.description)}</td>
-        <td style="max-width:200px">${esc(a.effects)}</td>
-      </tr>`).join('')}</tbody>
+      <thead><tr>${_th(tid,'name','Name')}${_th(tid,'number','Qty','class="td-num"')}${_th(tid,'quality','Quality')}<th>Description</th><th>Effects</th></tr></thead>
+      <tbody>${rows}</tbody>
     </table></div>
   </div>`;
 }
@@ -1663,7 +1695,8 @@ function renderDeployed() {
 }
 
 function renderFormationsTab(p) {
-  const rows = (p.formations||[]).map(f => `<tr>
+  const tid='formations';
+  const rows = _sortData(p.formations||[],tid).map(f => `<tr>
     <td class="gold" style="word-break:break-word">${esc(f.name)}</td>
     <td class="td-num">${f.quantity}</td>
     <td style="text-align:center">${f.strength?`<span class="tag tag-grey" style="font-size:11px">${f.strength} men</span>`:'<span class="dim">—</span>'}</td>
@@ -1689,14 +1722,15 @@ function renderFormationsTab(p) {
     </div>
     <div class="tbl-wrap"><table style="width:100%;table-layout:fixed">
       <colgroup><col style="width:130px"><col style="width:38px"><col style="width:80px"><col style="width:102px"><col><col style="width:210px"><col style="width:110px"></colgroup>
-      <thead><tr><th>Name</th><th>Qty</th><th>Strength</th><th>Category</th><th>Description</th><th>Deployed / Undeployed</th><th>Misc</th></tr></thead>
+      <thead><tr>${_th(tid,'name','Name')}${_th(tid,'quantity','Qty','class="td-num"')}${_th(tid,'strength','Strength')}${_th(tid,'category','Category')}<th>Description</th><th>Deployed / Undeployed</th><th>Misc</th></tr></thead>
       <tbody>${rows || '<tr class="empty-row"><td colspan="7">No formations</td></tr>'}</tbody>
     </table></div>
   </div>`;
 }
 
 function renderAssetsTab(p) {
-  const rows = (p.assets||[]).map(a => `<tr>
+  const tid='assets';
+  const rows = _sortData(p.assets||[],tid).map(a => `<tr>
     <td class="gold" style="word-break:break-word">${esc(a.name)}</td>
     <td class="td-num">${a.quantity}</td>
     <td><span class="tag tag-grey">${esc(a.category)}</span></td>
@@ -1721,15 +1755,16 @@ function renderAssetsTab(p) {
     </div>
     <div class="tbl-wrap"><table style="width:100%;table-layout:fixed">
       <colgroup><col style="width:130px"><col style="width:38px"><col style="width:102px"><col><col style="width:210px"><col style="width:110px"></colgroup>
-      <thead><tr><th>Name</th><th>Qty</th><th>Category</th><th>Description</th><th>Deployed / Undeployed</th><th>Misc</th></tr></thead>
+      <thead><tr>${_th(tid,'name','Name')}${_th(tid,'quantity','Qty','class="td-num"')}${_th(tid,'category','Category')}<th>Description</th><th>Deployed / Undeployed</th><th>Misc</th></tr></thead>
       <tbody>${rows || '<tr class="empty-row"><td colspan="6">No assets</td></tr>'}</tbody>
     </table></div>
   </div>`;
 }
 
 function renderShipsTab(p) {
+  const tid='ships';
   const ships = p.ships||[];
-  const rows = ships.map(s => `<tr>
+  const rows = _sortData(ships,tid).map(s => `<tr>
     <td class="gold" style="word-break:break-word">${esc(s.name)}</td>
     <td><span class="tag tag-blue">${esc(s.class||'')}</span></td>
     <td>${s.role?`<span class="tag tag-grey">${esc(s.role)}</span>`:'<span class="dim">—</span>'}</td>
@@ -1752,14 +1787,15 @@ function renderShipsTab(p) {
     <div class="card-title">Ships <span class="tag tag-grey">${ships.length}</span></div>
     <div class="tbl-wrap"><table style="width:100%;table-layout:fixed">
       <colgroup><col style="width:130px"><col style="width:130px"><col style="width:80px"><col style="width:35px"><col><col style="width:160px"><col style="width:200px"><col style="width:100px"></colgroup>
-      <thead><tr><th>Name</th><th>Class</th><th>Role</th><th>Qty</th><th>Description</th><th>Deployed / Undeployed</th><th>Specifications</th><th>Misc</th></tr></thead>
+      <thead><tr>${_th(tid,'name','Name')}${_th(tid,'class','Class')}${_th(tid,'role','Role')}${_th(tid,'quantity','Qty','class="td-num"')}<th>Description</th><th>Deployed / Undeployed</th><th>Specifications</th><th>Misc</th></tr></thead>
       <tbody>${rows || '<tr class="empty-row"><td colspan="6">No ships</td></tr>'}</tbody>
     </table></div>
   </div>`;
 }
 
 function renderStructuresTab(p) {
-  const rows = (p.structures||[]).map(s => {
+  const tid='structures';
+  const rows = _sortData(p.structures||[],tid).map(s => {
     const forces = getStructureForces(p, s.name);
     return `<tr>
       <td class="gold" style="word-break:break-word">${esc(s.name)}</td>
@@ -1779,14 +1815,15 @@ function renderStructuresTab(p) {
     </div>
     <div class="tbl-wrap"><table style="width:100%;table-layout:fixed">
       <colgroup><col style="width:130px"><col style="width:38px"><col style="width:102px"><col><col style="width:130px"><col style="width:170px"><col style="width:110px"></colgroup>
-      <thead><tr><th>Name</th><th>Qty</th><th>Category</th><th>Description</th><th>Location</th><th>Attached Forces</th><th>Misc</th></tr></thead>
+      <thead><tr>${_th(tid,'name','Name')}${_th(tid,'quantity','Qty','class="td-num"')}${_th(tid,'category','Category')}<th>Description</th>${_th(tid,'location','Location')}<th>Attached Forces</th><th>Misc</th></tr></thead>
       <tbody>${rows || '<tr class="empty-row"><td colspan="7">No structures</td></tr>'}</tbody>
     </table></div>
   </div>`;
 }
 
 function renderMiscTab(p) {
-  const rows = (p.miscItems||[]).map(m => `<tr>
+  const tid='miscItems';
+  const rows = _sortData(p.miscItems||[],tid).map(m => `<tr>
     <td class="gold" style="word-break:break-word">${esc(m.name)}</td>
     <td class="td-num">${m.quantity}</td>
     <td><span class="tag tag-grey">${esc(m.category)}</span></td>
@@ -1811,7 +1848,7 @@ function renderMiscTab(p) {
     </div>
     <div class="tbl-wrap"><table style="width:100%;table-layout:fixed">
       <colgroup><col style="width:130px"><col style="width:38px"><col style="width:102px"><col><col style="width:210px"><col style="width:110px"></colgroup>
-      <thead><tr><th>Name</th><th>Qty</th><th>Category</th><th>Description</th><th>Deployed / Undeployed</th><th>Misc</th></tr></thead>
+      <thead><tr>${_th(tid,'name','Name')}${_th(tid,'quantity','Qty','class="td-num"')}${_th(tid,'category','Category')}<th>Description</th><th>Deployed / Undeployed</th><th>Misc</th></tr></thead>
       <tbody>${rows || '<tr class="empty-row"><td colspan="6">No misc items</td></tr>'}</tbody>
     </table></div>
   </div>`;
@@ -2065,7 +2102,8 @@ function renderFinance() {
   const net = calcNet(p);
   const proj = bal + net;
 
-  const incomeRows = (p.income||[]).map(r => `<tr>
+  const tidInc='income'; const tidProd='production';
+  const incomeRows = _sortData(p.income||[],tidInc).map(r => `<tr>
     <td>${esc(r.name)}</td>
     <td class="td-num dim">${r.quantity}</td>
     <td class="td-num pos">${r.income>0?fmtC(r.income):''}</td>
@@ -2074,7 +2112,7 @@ function renderFinance() {
     <td class="td-num">${fmtCredits(r.totalNet)}</td>
   </tr>`).join('');
 
-  const prodRows = (p.production||[]).map(r => `<tr>
+  const prodRows = _sortData(p.production||[],tidProd).map(r => `<tr>
     <td>${esc(r.name)}</td>
     <td class="dim">${r.quantity}</td>
     <td class="dim">${esc(r.cycle)}</td>
@@ -2093,7 +2131,7 @@ function renderFinance() {
   <div class="card">
     <div class="card-title">Income &amp; Upkeep Breakdown</div>
     <div class="tbl-wrap"><table>
-      <thead><tr><th>Source</th><th class="td-num">Qty</th><th class="td-num">Income</th><th class="td-num">Upkeep</th><th class="td-num">Net (each)</th><th class="td-num">Total Net</th></tr></thead>
+      <thead><tr>${_th(tidInc,'name','Source')}${_th(tidInc,'quantity','Qty','class="td-num"')}${_th(tidInc,'income','Income','class="td-num"')}${_th(tidInc,'upkeep','Upkeep','class="td-num"')}<th class="td-num">Net (each)</th>${_th(tidInc,'totalNet','Total Net','class="td-num"')}</tr></thead>
       <tbody>
         ${incomeRows||'<tr class="empty-row"><td colspan="6">No income entries</td></tr>'}
         <tr style="background:var(--bg3)">
@@ -2106,7 +2144,7 @@ function renderFinance() {
   ${p.production&&p.production.length?`<div class="card">
     <div class="card-title">Production</div>
     <div class="tbl-wrap"><table>
-      <thead><tr><th>Name</th><th>Qty</th><th>Cycle</th><th>Origin</th><th class="td-num">Est. Value</th><th class="td-num">Total Value</th></tr></thead>
+      <thead><tr>${_th(tidProd,'name','Name')}${_th(tidProd,'quantity','Qty','class="td-num"')}${_th(tidProd,'cycle','Cycle')}${_th(tidProd,'origin','Origin')}<th class="td-num">Est. Value</th>${_th(tidProd,'totalValue','Total Value','class="td-num"')}</tr></thead>
       <tbody>${prodRows}</tbody>
     </table></div>
   </div>`:''}
@@ -2122,21 +2160,23 @@ function renderPopulation() {
   const pops = p.populations||[];
   if(!pops.length) return `<div class="card"><div class="card-title">Population Centers</div><div class="dim" style="padding:12px">No population data.</div></div>`;
 
+  const tid='populations';
   let totalPop=0, totalGdp=0, totalTax=0;
-  const rows = pops.map(row=>{
+  const enriched = pops.map(row=>{
     const gdp = (row.gdpPerCapita||0) * (row.adultPop||0);
     const tax = Math.round((row.taxPercent||0) / 100 * gdp);
-    totalPop += (row.adultPop||0);
-    totalGdp += gdp;
-    totalTax += tax;
+    totalPop += (row.adultPop||0); totalGdp += gdp; totalTax += tax;
+    return {...row, _gdp:gdp, _tax:tax};
+  });
+  const rows = _sortData(enriched, tid).map(row=>{
     return `<tr>
       <td class="gold">${esc(row.name)}</td>
       <td class="td-num">${fmt(row.adultPop||0)}</td>
       <td><span class="loyalty-${(row.loyalty||'').toLowerCase()}">${esc(row.loyalty||'')}</span></td>
       <td class="td-num">${fmtC(row.gdpPerCapita||0)}</td>
-      <td class="td-num gold">${fmtC(gdp)}</td>
+      <td class="td-num gold">${fmtC(row._gdp)}</td>
       <td class="td-num">${(row.taxPercent||0).toFixed(1)}%</td>
-      <td class="td-num pos">${fmtC(tax)}</td>
+      <td class="td-num pos">${fmtC(row._tax)}</td>
       <td class="dim">${esc(row.additionalInfo||'')}</td>
     </tr>`;
   }).join('');
@@ -2162,13 +2202,13 @@ function renderPopulation() {
           <col>
         </colgroup>
         <thead><tr>
-          <th>Name</th>
-          <th class="td-num">Population</th>
-          <th>Loyalty</th>
-          <th class="td-num">GDP/Capita</th>
-          <th class="td-num">GDP</th>
-          <th class="td-num">Tax%</th>
-          <th class="td-num">Tax Income</th>
+          ${_th(tid,'name','Name')}
+          ${_th(tid,'adultPop','Population','class="td-num"')}
+          ${_th(tid,'loyalty','Loyalty')}
+          ${_th(tid,'gdpPerCapita','GDP/Capita','class="td-num"')}
+          ${_th(tid,'_gdp','GDP','class="td-num"')}
+          ${_th(tid,'taxPercent','Tax%','class="td-num"')}
+          ${_th(tid,'_tax','Tax Income','class="td-num"')}
           <th>Additional Info</th>
         </tr></thead>
         <tbody>${rows}</tbody>
@@ -2367,18 +2407,20 @@ function doAdminLogin() {
 // ADMIN OVERVIEW
 // ============================================================
 function renderAdminOverview() {
-  const players = Object.values(STATE.players);
-  const rows = players.map(p => {
-    const net = calcNet(p);
-    const bal = calcBalance(p);
+  const tid='adminOverview';
+  const enriched = Object.values(STATE.players).map(p => {
+    const _net = calcNet(p), _bal = calcBalance(p);
+    return { ...p, _net, _bal, _proj: _bal+_net, _deployed: (p.formations||[]).reduce((s,f)=>s+totalDeployed(f),0), _charName: p.character?.name||'', _rank: p.character?.rank||'' };
+  });
+  const rows = _sortData(enriched, tid).map(p => {
     return `<tr>
       <td class="gold" style="cursor:pointer" onclick="adminEditPlayer('${p.id}')">${esc(p.displayName)}</td>
-      <td>${esc(p.character.name)}</td>
-      <td><span class="tag tag-red">${esc(p.character.rank)}</span></td>
-      <td class="td-num">${fmtC(bal)}</td>
-      <td class="td-num ${net>=0?'pos':'neg'}">${net>=0?'+':'-'}${CREDIT_SVG}${fmt(Math.abs(net))}</td>
-      <td class="td-num ${(bal+net)>=0?'pos':'neg'}">${fmtC(bal+net)}</td>
-      <td class="td-num dim">${(p.formations||[]).reduce((s,f)=>s+totalDeployed(f),0)}</td>
+      <td>${esc(p._charName)}</td>
+      <td><span class="tag tag-red">${esc(p._rank)}</span></td>
+      <td class="td-num">${fmtC(p._bal)}</td>
+      <td class="td-num ${p._net>=0?'pos':'neg'}">${p._net>=0?'+':'-'}${CREDIT_SVG}${fmt(Math.abs(p._net))}</td>
+      <td class="td-num ${p._proj>=0?'pos':'neg'}">${fmtC(p._proj)}</td>
+      <td class="td-num dim">${p._deployed}</td>
       <td>
         <button class="btn btn-ghost btn-sm" onclick="adminEditPlayer('${p.id}')">Edit</button>
         <button class="btn btn-gold btn-sm" onclick="adminAdjustFunds('${p.id}')">Adjust Funds</button>
@@ -2389,7 +2431,7 @@ function renderAdminOverview() {
   return `<div class="card">
     <div class="card-title">All Players Overview</div>
     <div class="tbl-wrap"><table>
-      <thead><tr><th>Player</th><th>Character</th><th>Rank</th><th class="td-num">Balance</th><th class="td-num">Net/Cycle</th><th class="td-num">Projected</th><th class="td-num">Deployed</th><th>Actions</th></tr></thead>
+      <thead><tr>${_th(tid,'displayName','Player')}${_th(tid,'_charName','Character')}${_th(tid,'_rank','Rank')}${_th(tid,'_bal','Balance','class="td-num"')}${_th(tid,'_net','Net/Cycle','class="td-num"')}${_th(tid,'_proj','Projected','class="td-num"')}${_th(tid,'_deployed','Deployed','class="td-num"')}<th>Actions</th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>
   </div>
@@ -2823,13 +2865,14 @@ function adminAddPopRow(pid) {
 // ADMIN SHOP
 // ============================================================
 function renderAdminShop() {
-  const items = STATE.shopItems||[];
+  const tid='adminShop';
+  const items = _sortData(STATE.shopItems||[], tid);
   return `<div class="card">
-    <div class="card-title">Shop Items (${items.length})
+    <div class="card-title">Shop Items (${(STATE.shopItems||[]).length})
       <button class="btn btn-green btn-sm" onclick="showAddShopItem()">+ Add Item</button>
     </div>
     <div class="tbl-wrap"><table>
-      <thead><tr><th>Name</th><th>Category</th><th class="td-num">Price</th><th>Description</th><th>Prereq</th><th>Actions</th></tr></thead>
+      <thead><tr>${_th(tid,'name','Name')}${_th(tid,'category','Category')}${_th(tid,'price','Price','class="td-num"')}<th>Description</th><th>Prereq</th><th>Actions</th></tr></thead>
       <tbody>
         ${items.map(item=>`<tr>
           <td class="gold">${esc(item.name)}</td>
@@ -2927,8 +2970,9 @@ document.addEventListener('click', ()=>{ const dd=document.getElementById('si-ca
 // ADMIN PURCHASE REQUESTS
 // ============================================================
 function renderAdminRequests() {
+  const tidPur='adminPurchases'; const tidDep='adminDepReqs';
   // ── Purchase requests ──
-  const purchases = (STATE.purchaseRequests||[]).slice().reverse();
+  const purchases = _sortData((STATE.purchaseRequests||[]).slice().reverse(), tidPur);
   const purchaseRows = purchases.map(r=>`<tr>
     <td class="dim" style="font-size:11px">${new Date(r.date).toLocaleDateString()}</td>
     <td class="gold">${esc(r.playerName)}</td>
@@ -2947,7 +2991,7 @@ function renderAdminRequests() {
   </tr>`).join('');
 
   // ── Deployment requests ──
-  const depReqs = (STATE.deploymentRequests||[]).slice().reverse();
+  const depReqs = _sortData((STATE.deploymentRequests||[]).slice().reverse(), tidDep);
   const depRows = depReqs.map(r => {
     const proposed = (r.proposedDeployments||[]).map(d=>`${d.qty}× ${d.location||'?'}${d.note?' ('+d.note+')':''}`).join(', ') || 'None';
     const current  = (r.currentDeployments||[]).map(d=>`${d.qty}× ${d.location||'?'}`).join(', ') || 'None';
@@ -2972,14 +3016,14 @@ function renderAdminRequests() {
   <div class="card">
     <div class="card-title">Purchase Requests</div>
     <div class="tbl-wrap"><table>
-      <thead><tr><th>Date</th><th>Player</th><th>Item</th><th>Qty</th><th class="td-num">Price</th><th class="td-num">Total</th><th>Note</th><th>Status</th><th>Actions</th></tr></thead>
+      <thead><tr>${_th(tidPur,'date','Date')}${_th(tidPur,'playerName','Player')}${_th(tidPur,'itemName','Item')}${_th(tidPur,'quantity','Qty','class="td-num"')}${_th(tidPur,'price','Price','class="td-num"')}${_th(tidPur,'totalCost','Total','class="td-num"')}<th>Note</th>${_th(tidPur,'status','Status')}<th>Actions</th></tr></thead>
       <tbody>${purchaseRows||'<tr class="empty-row"><td colspan="9">No purchase requests.</td></tr>'}</tbody>
     </table></div>
   </div>
   <div class="card">
     <div class="card-title">Redeployment Requests</div>
     <div class="tbl-wrap"><table>
-      <thead><tr><th>Date</th><th>Player</th><th>Unit</th><th>Current</th><th>Proposed</th><th>Note</th><th>Status</th><th>Actions</th></tr></thead>
+      <thead><tr>${_th(tidDep,'date','Date')}${_th(tidDep,'playerName','Player')}${_th(tidDep,'itemName','Unit')}<th>Current</th><th>Proposed</th><th>Note</th>${_th(tidDep,'status','Status')}<th>Actions</th></tr></thead>
       <tbody>${depRows||'<tr class="empty-row"><td colspan="8">No redeployment requests.</td></tr>'}</tbody>
     </table></div>
   </div>`;

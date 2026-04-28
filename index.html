@@ -3449,9 +3449,17 @@ function renderAdminDeploy() {
 // ADMIN LOCATIONS
 // ============================================================
 let _locFilter = '';
+let _locSortDir = 'asc';
 let _locOpen = new Set(['Planet','Character','Structure','Unclassified','unmanaged','playerStructs']);
-function _locSetFilter(v) { _locFilter = v; render(); }
+function _locSetFilter(v) {
+  _locFilter = v; render();
+  setTimeout(()=>{ const el=document.getElementById('loc-filter-inp'); if(el){ el.focus(); el.setSelectionRange(v.length,v.length); }}, 0);
+}
 function _locToggle(key) { _locOpen.has(key) ? _locOpen.delete(key) : _locOpen.add(key); render(); }
+function _locToggleNameSort() {
+  _locSortDir = _locSortDir==='asc'?'desc':'asc'; render();
+  setTimeout(()=>{ const el=document.getElementById('loc-filter-inp'); if(el) el.focus(); }, 0);
+}
 
 function _locSection(key, icon, title, items, rowFn, emptyMsg='') {
   const open = _locOpen.has(key);
@@ -3484,13 +3492,15 @@ function renderAdminLocations() {
       <button class="btn btn-red btn-sm" onclick="deleteLoc('${l.id}')">✕</button>
     </td></tr>`;
 
+  const locCmp = (a,b) => { const c=(a.name||'').localeCompare(b.name||''); return _locSortDir==='asc'?c:-c; };
+  const strCmp = (a,b) => { const c=a.localeCompare(b); return _locSortDir==='asc'?c:-c; };
   const filter = arr => q ? arr.filter(l=>(l.name||'').toLowerCase().includes(q)) : arr;
 
   // ── Managed sections ──
-  const planets    = filter(locs.filter(l=>l.classification==='Planet')).sort((a,b)=>a.name.localeCompare(b.name));
-  const chars      = filter(locs.filter(l=>l.classification==='Character')).sort((a,b)=>a.name.localeCompare(b.name));
-  const structs    = filter(locs.filter(l=>l.classification==='Structure')).sort((a,b)=>a.name.localeCompare(b.name));
-  const unclassed  = filter(locs.filter(l=>!['Planet','Character','Structure'].includes(l.classification))).sort((a,b)=>a.name.localeCompare(b.name));
+  const planets    = filter(locs.filter(l=>l.classification==='Planet')).sort(locCmp);
+  const chars      = filter(locs.filter(l=>l.classification==='Character')).sort(locCmp);
+  const structs    = filter(locs.filter(l=>l.classification==='Structure')).sort(locCmp);
+  const unclassed  = filter(locs.filter(l=>!['Planet','Character','Structure'].includes(l.classification))).sort(locCmp);
 
   // ── Unmanaged ──
   const structNames = new Set();
@@ -3499,16 +3509,17 @@ function renderAdminLocations() {
   players.forEach(p=>['formations','assets','miscItems'].forEach(k=>(p[k]||[]).forEach(item=>(item.deployments||[]).forEach(d=>{
     if(d.location&&d.location.trim()) deployedLocs.add(d.location.trim());
   }))));
-  const unmanaged = [...deployedLocs].filter(n=>!managedNames.has(n)&&!structNames.has(n)).sort()
-    .filter(n=>!q||n.toLowerCase().includes(q));
+  const unmanaged = [...deployedLocs].filter(n=>!managedNames.has(n)&&!structNames.has(n))
+    .filter(n=>!q||n.toLowerCase().includes(q)).sort(strCmp);
 
   // ── Player structures ──
   const allStructs = [];
   players.forEach(p=>(p.structures||[]).forEach(s=>{if(s.name) allStructs.push({name:s.name,location:s.location||'',player:p.displayName,pid:p.id});}));
-  allStructs.sort((a,b)=>a.name.localeCompare(b.name));
-  const filtStructs = q ? allStructs.filter(s=>s.name.toLowerCase().includes(q)||s.player.toLowerCase().includes(q)) : allStructs;
+  const filtStructs = (q ? allStructs.filter(s=>s.name.toLowerCase().includes(q)||s.player.toLowerCase().includes(q)) : allStructs).sort(locCmp);
 
   const totalManaged = planets.length+chars.length+structs.length+unclassed.length;
+  const sortIcon = _locSortDir==='asc' ? ' ↑' : ' ↓';
+  const nameTh = `<th style="cursor:pointer;user-select:none;white-space:nowrap" onclick="_locToggleNameSort()">Name${sortIcon}</th>`;
 
   return `
   <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap">
@@ -3517,7 +3528,7 @@ function renderAdminLocations() {
       <span class="tag tag-grey">${locs.length} total</span>
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <input type="text" placeholder="Filter locations…" value="${esc(_locFilter)}"
+      <input id="loc-filter-inp" type="text" placeholder="Filter locations…" value="${esc(_locFilter)}"
         oninput="_locSetFilter(this.value)"
         style="background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:5px 10px;font-size:13px;font-family:inherit;width:200px">
       <button class="btn btn-green btn-sm" onclick="showLocModal(null)">+ Add Location</button>
@@ -3525,23 +3536,23 @@ function renderAdminLocations() {
   </div>
   <div style="display:flex;flex-direction:column;gap:8px">
     ${_locSection('Planet', LOC_ICON['Planet'], 'Planets', planets, items=>`
-      <thead><tr><th>Name</th><th>Visible To</th><th>Actions</th></tr></thead><tbody>
+      <thead><tr>${nameTh}<th>Visible To</th><th>Actions</th></tr></thead><tbody>
       ${items.map(locRow).join('')}</tbody>`, 'No planets match filter.')}
     ${_locSection('Character', LOC_ICON['Character'], 'Characters', chars, items=>`
-      <thead><tr><th>Name</th><th>Visible To</th><th>Actions</th></tr></thead><tbody>
+      <thead><tr>${nameTh}<th>Visible To</th><th>Actions</th></tr></thead><tbody>
       ${items.map(locRow).join('')}</tbody>`, 'No characters match filter.')}
     ${_locSection('Structure', LOC_ICON['Structure'], 'Structures', structs, items=>`
-      <thead><tr><th>Name</th><th>Visible To</th><th>Actions</th></tr></thead><tbody>
+      <thead><tr>${nameTh}<th>Visible To</th><th>Actions</th></tr></thead><tbody>
       ${items.map(locRow).join('')}</tbody>`, 'No structures match filter.')}
     ${unclassed.length ? _locSection('Unclassified', '❓', 'Unclassified', unclassed, items=>`
-      <thead><tr><th>Name</th><th>Visible To</th><th>Actions</th></tr></thead><tbody>
+      <thead><tr>${nameTh}<th>Visible To</th><th>Actions</th></tr></thead><tbody>
       ${items.map(locRow).join('')}</tbody>`) : ''}
     ${!totalManaged&&!q ? `<div class="card"><div class="dim" style="padding:8px">No locations defined. Use + Add Location to create some.</div></div>` : ''}
     ${unmanaged.length ? _locSection('unmanaged', '⭐', 'Unmanaged Deployment Locations', unmanaged, items=>`
-      <thead><tr><th>Name</th><th>Actions</th></tr></thead><tbody>
+      <thead><tr>${nameTh}<th>Actions</th></tr></thead><tbody>
       ${items.map(n=>`<tr><td>${esc(n)}</td><td><button class="btn btn-green btn-sm" onclick="showLocModal(null,'${n.replace(/'/g,"\\'")}','Planet','all')">+ Add</button></td></tr>`).join('')}</tbody>`) : ''}
     ${filtStructs.length ? _locSection('playerStructs', '🏛', 'Player Structures', filtStructs, items=>`
-      <thead><tr><th>Name</th><th>Player</th><th>Location</th><th>In List</th><th>Actions</th></tr></thead><tbody>
+      <thead><tr>${nameTh}<th>Player</th><th>Location</th><th>In List</th><th>Actions</th></tr></thead><tbody>
       ${items.map(s=>{const inList=managedNames.has(s.name);return`<tr>
         <td class="gold">${esc(s.name)}</td><td class="dim">${esc(s.player)}</td><td class="dim">${esc(s.location)||'—'}</td>
         <td>${inList?'<span class="tag tag-grey">✓ Yes</span>':'<span class="dim">No</span>'}</td>

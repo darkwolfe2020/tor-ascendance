@@ -1101,7 +1101,6 @@ function render() {
       <button class="nav-btn ${currentView==='assets'?'active':''}" onclick="navigate('assets')">Assets &amp; Forces</button>
       <button class="nav-btn ${currentView==='deployed'?'active':''}" onclick="navigate('deployed')">Deployed Forces</button>
       <button class="nav-btn ${currentView==='finance'?'active':''}" onclick="navigate('finance')">Finance</button>
-      <button class="nav-btn ${currentView==='population'?'active':''}" onclick="navigate('population')">Population</button>
       <button class="nav-btn ${currentView==='shop'?'active':''}" onclick="navigate('shop')">Shop</button>
       <button class="nav-btn ${currentView==='todo'?'active':''}" onclick="navigate('todo')">GM Tasks</button>
     `;
@@ -1130,7 +1129,6 @@ function render() {
     case 'assets': app.innerHTML = renderAssets(); break;
     case 'deployed': app.innerHTML = renderDeployed(); break;
     case 'finance': app.innerHTML = renderFinance(); break;
-    case 'population': app.innerHTML = renderPopulation(); break;
     case 'shop': app.innerHTML = renderShop(); break;
     case 'todo': app.innerHTML = renderTodo(); break;
     case 'admin-overview': app.innerHTML = renderAdminOverview(); break;
@@ -1517,8 +1515,8 @@ function renderAssets() {
   const p = STATE.players[currentPlayer];
   if(!p) return '';
 
-  const tabs = ['formations','assets','ships','structures','misc','apprentices'];
-  const tabLabels = { formations:'Formations', assets:'Assets', ships:'Ships', structures:'Structures', misc:'Misc Items', apprentices:'Apprentices' };
+  const tabs = ['formations','assets','ships','structures','misc','apprentices','population'];
+  const tabLabels = { formations:'Formations', assets:'Assets', ships:'Ships', structures:'Structures', misc:'Misc Items', apprentices:'Apprentices', population:'Population' };
 
   return `
   <div class="tab-bar">
@@ -1530,6 +1528,7 @@ function renderAssets() {
   ${assetsTab==='structures' ? renderStructuresTab(p) : ''}
   ${assetsTab==='misc' ? renderMiscTab(p) : ''}
   ${assetsTab==='apprentices' ? renderApprentices() : ''}
+  ${assetsTab==='population' ? renderPopulation() : ''}
   `;
 }
 

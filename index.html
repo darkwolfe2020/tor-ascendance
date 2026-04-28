@@ -234,7 +234,7 @@ function saveState() {
 }
 function migrateState(state) {
   Object.values(state.players||{}).forEach(p => {
-    ['formations','assets','miscItems'].forEach(key => {
+    ['formations','assets','miscItems','ships'].forEach(key => {
       (p[key]||[]).forEach(item => {
         if(!item.deployments) {
           const dep = Number(item.deployed)||0;
@@ -244,6 +244,7 @@ function migrateState(state) {
         }
       });
     });
+    if(!p.ships) p.ships = [];
   });
   // Migrate to managed locations
   if(!state.locations || !state.locations.length) {
@@ -277,8 +278,8 @@ function buildSeedState() {
   const players = {};
 
   // Helper to make a player skeleton
-  function mkPlayer(id, displayName, charData, finances, structures, formations, assets, miscItems, income, production, populations, trophies, apprentices, artifacts) {
-    return { id, displayName, character: charData, finances, structures: structures||[], formations: formations||[], assets: assets||[], miscItems: miscItems||[], income: income||[], production: production||[], populations: populations||[], trophies: trophies||[], apprentices: apprentices||[], artifacts: artifacts||[] };
+  function mkPlayer(id, displayName, charData, finances, structures, formations, assets, miscItems, income, production, populations, trophies, apprentices, artifacts, ships) {
+    return { id, displayName, character: charData, finances, structures: structures||[], formations: formations||[], assets: assets||[], miscItems: miscItems||[], income: income||[], production: production||[], populations: populations||[], trophies: trophies||[], apprentices: apprentices||[], artifacts: artifacts||[], ships: ships||[] };
   }
 
   // ----- FASHODA -----
@@ -982,7 +983,7 @@ function getLocationsFor(pid) {
 function getPlayerLocations(p) {
   const structNames = new Set((p.structures||[]).map(s=>s.name).filter(Boolean));
   const locs = new Set();
-  ['formations','assets'].forEach(k=>(p[k]||[]).forEach(item=>(item.deployments||[]).forEach(d=>{if(d.location&&d.location.trim())locs.add(d.location.trim());})));
+  ['formations','assets','ships'].forEach(k=>(p[k]||[]).forEach(item=>(item.deployments||[]).forEach(d=>{if(d.location&&d.location.trim())locs.add(d.location.trim());})));
   return [...locs].filter(l=>!PLANETS.includes(l)&&!structNames.has(l)).sort();
 }
 function totalDeployed(item) {
@@ -1477,8 +1478,8 @@ function renderAssets() {
   const p = STATE.players[currentPlayer];
   if(!p) return '';
 
-  const tabs = ['formations','assets','structures','misc'];
-  const tabLabels = { formations:'Formations', assets:'Assets', structures:'Structures', misc:'Misc Items' };
+  const tabs = ['formations','assets','ships','structures','misc'];
+  const tabLabels = { formations:'Formations', assets:'Assets', ships:'Ships', structures:'Structures', misc:'Misc Items' };
 
   return `
   <div class="tab-bar">
@@ -1486,6 +1487,7 @@ function renderAssets() {
   </div>
   ${assetsTab==='formations' ? renderFormationsTab(p) : ''}
   ${assetsTab==='assets' ? renderAssetsTab(p) : ''}
+  ${assetsTab==='ships' ? renderShipsTab(p) : ''}
   ${assetsTab==='structures' ? renderStructuresTab(p) : ''}
   ${assetsTab==='misc' ? renderMiscTab(p) : ''}
   `;
@@ -1719,6 +1721,35 @@ function renderAssetsTab(p) {
   </div>`;
 }
 
+function renderShipsTab(p) {
+  const ships = p.ships||[];
+  const rows = ships.map(s => `<tr>
+    <td class="gold" style="word-break:break-word">${esc(s.name)}</td>
+    <td><span class="tag tag-blue">${esc(s.class||'')}</span></td>
+    <td>${s.role?`<span class="tag tag-grey">${esc(s.role)}</span>`:'<span class="dim">—</span>'}</td>
+    <td class="td-num">${s.quantity}</td>
+    <td class="dim" style="word-break:break-word">${esc(s.description)}</td>
+    <td>
+      <div class="deploy-ctrl">
+        <span class="badge-deployed" title="Deployed">${totalDeployed(s)}</span>
+        <span class="sep">/</span>
+        <span class="badge-undeployed" title="Undeployed">${s.undeployed}</span>
+        <button class="btn btn-ghost btn-sm" onclick="showDeployModal('ships','${s.id}')">Reposition</button>
+      </div>
+      ${deploymentSummary(s)}
+    </td>
+    <td class="dim" style="word-break:break-word">${esc(s.misc)}</td>
+  </tr>`).join('');
+  return `<div class="card">
+    <div class="card-title">Ships <span class="tag tag-grey">${ships.length}</span></div>
+    <div class="tbl-wrap"><table style="width:100%;table-layout:fixed">
+      <colgroup><col style="width:140px"><col style="width:140px"><col style="width:90px"><col style="width:38px"><col><col style="width:220px"><col style="width:110px"></colgroup>
+      <thead><tr><th>Name</th><th>Class</th><th>Role</th><th>Qty</th><th>Description</th><th>Deployed / Undeployed</th><th>Misc</th></tr></thead>
+      <tbody>${rows || '<tr class="empty-row"><td colspan="6">No ships</td></tr>'}</tbody>
+    </table></div>
+  </div>`;
+}
+
 function renderStructuresTab(p) {
   const rows = (p.structures||[]).map(s => {
     const forces = getStructureForces(p, s.name);
@@ -1833,7 +1864,16 @@ function _renderLocOptions(i, text) {
     html += `<div class="loc-sec">🏛 Your Structures</div>`;
     html += filtS.map(s=>`<div class="loc-opt" onclick="event.stopPropagation();_depSelectLoc(${i},'${s.name.replace(/'/g,"\\'")}')"><span>🏛 ${esc(s.name)}</span><span class="dim" style="font-size:11px;margin-left:8px">${esc(s.location||'')}</span></div>`).join('');
   }
-  const allNames = [...managed.map(l=>l.name),...structs.map(s=>s.name)];
+  const ships = (p.ships||[]).filter(s=>s.name&&s.name.trim());
+  const filtShips = q ? ships.filter(s=>s.name.toLowerCase().includes(q)) : ships;
+  if(filtShips.length) {
+    html += `<div class="loc-sec">🚀 Your Ships</div>`;
+    html += filtShips.map(s=>{
+      const depLoc = (s.deployments||[]).filter(d=>d.qty>0).map(d=>d.location||'?').join(', ');
+      return `<div class="loc-opt" onclick="event.stopPropagation();_depSelectLoc(${i},'${s.name.replace(/'/g,"\\'")}')"><span>🚀 ${esc(s.name)}</span><span class="dim" style="font-size:11px;margin-left:8px">${esc(s.class||'')}${depLoc?' · '+depLoc:''}</span></div>`;
+    }).join('');
+  }
+  const allNames = [...managed.map(l=>l.name),...structs.map(s=>s.name),...ships.map(s=>s.name)];
   const exactExists = allNames.some(n=>n.toLowerCase()===q);
   if(text&&!exactExists) html += `<div class="loc-opt loc-create" onclick="event.stopPropagation();_depSelectLoc(${i},'${text.replace(/'/g,"\\'").replace(/"/g,'\\"')}')">+ Create &ldquo;${esc(text)}&rdquo;</div>`;
   if(!html) html = `<div class="loc-opt" style="color:var(--text2);cursor:default">No locations found</div>`;
@@ -2349,8 +2389,8 @@ function renderAdminPlayers() {
   let content = '<div class="dim" style="padding:20px">Select a player to edit.</div>';
   if(adminPlayerSelected && STATE.players[adminPlayerSelected]) {
     const p = STATE.players[adminPlayerSelected];
-    const tabList = ['character','finances','formations','assets','structures','misc','income','populations','trophies','apprentices','artifacts'];
-    const tabLabels = { character:'Character', finances:'Finances', formations:'Formations', assets:'Assets', structures:'Structures', misc:'Misc', income:'Income', populations:'Populations', trophies:'Trophies', apprentices:'Apprentices', artifacts:'Artifacts' };
+    const tabList = ['character','finances','formations','assets','ships','structures','misc','income','populations','trophies','apprentices','artifacts'];
+    const tabLabels = { character:'Character', finances:'Finances', formations:'Formations', assets:'Assets', ships:'Ships', structures:'Structures', misc:'Misc', income:'Income', populations:'Populations', trophies:'Trophies', apprentices:'Apprentices', artifacts:'Artifacts' };
     content = `
       <div class="tab-bar" style="flex-wrap:wrap">
         ${tabList.map(t=>`<div class="tab ${adminPlayerTab===t?'active':''}" onclick="adminPlayerTab='${t}';render()" style="font-size:12px;padding:5px 10px">${tabLabels[t]}</div>`).join('')}
@@ -2360,6 +2400,7 @@ function renderAdminPlayers() {
       ${adminPlayerTab==='formations'?renderAdminListEdit(p,'formations','Formations',['name','quantity','strength','category','description','misc']):''}
       ${adminPlayerTab==='assets'?renderAdminListEdit(p,'assets','Assets',['name','quantity','category','description','misc']):''}
       ${adminPlayerTab==='structures'?renderAdminListEdit(p,'structures','Structures',['name','quantity','category','description','location','locationNote','misc']):''}
+      ${adminPlayerTab==='ships'?renderAdminListEdit(p,'ships','Ships',['name','class','quantity','description','misc']):''}
       ${adminPlayerTab==='misc'?renderAdminListEdit(p,'miscItems','Misc Items',['name','quantity','category','description','misc']):''}
       ${adminPlayerTab==='income'?renderAdminIncomeEdit(p):''}
       ${adminPlayerTab==='populations'?renderAdminPopEdit(p):''}
@@ -2551,6 +2592,7 @@ const MOVABLE_LISTS = { formations:'Formations', assets:'Assets', miscItems:'Mis
 const ADMIN_LIST_FIELDS = {
   formations: ['name','quantity','strength','category','description','misc'],
   assets:     ['name','quantity','category','description','misc'],
+  ships:      ['name','class','role','quantity','description','misc'],
   structures: ['name','quantity','category','description','location','locationNote','misc'],
   miscItems:  ['name','quantity','category','description','misc'],
   trophies:   ['name','number','aura','description','conflict','claimedFrom'],
@@ -2559,7 +2601,7 @@ const ADMIN_LIST_FIELDS = {
 };
 function renderAdminListEdit(p, listKey, title, fields) {
   const list = p[listKey]||[];
-  const colWidth = { name:'90px', description:'380px', category:'80px', quantity:'55px', number:'55px', strength:'60px', deployed:'60px', undeployed:'70px', location:'110px', locationNote:'130px', misc:'110px', attachedForces:'110px', aura:'60px', quality:'70px', form:'90px', rank:'70px', specialization:'90px', conflict:'110px', claimedFrom:'110px', effects:'200px' };
+  const colWidth = { name:'90px', description:'380px', category:'80px', quantity:'55px', number:'55px', strength:'60px', deployed:'60px', undeployed:'70px', location:'110px', locationNote:'130px', misc:'110px', attachedForces:'110px', aura:'60px', quality:'70px', form:'90px', rank:'70px', specialization:'90px', conflict:'110px', claimedFrom:'110px', effects:'200px', class:'130px', role:'90px' };
   const canMove = listKey in MOVABLE_LISTS;
   const moveOpts = canMove ? Object.entries(MOVABLE_LISTS).filter(([k])=>k!==listKey).map(([k,v])=>`<option value="${k}">${v}</option>`).join('') : '';
   return `<div class="card">
@@ -2630,7 +2672,7 @@ function adminAddRow(pid, listKey) {
   const fields = ADMIN_LIST_FIELDS[listKey] || [];
   const newRow = { id: newId() };
   fields.forEach(f => newRow[f] = ['quantity'].includes(f)?0:'');
-  if(['formations','assets','miscItems'].includes(listKey)) {
+  if(['formations','assets','miscItems','ships'].includes(listKey)) {
     newRow.deployments = [];
     newRow.undeployed = 0;
   }

@@ -990,6 +990,9 @@ function getPlayerLocations(p) {
 function totalDeployed(item) {
   return (item.deployments||[]).reduce((s,d)=>s+(Number(d.qty)||0),0);
 }
+function pendingDepRequest(listKey, itemId) {
+  return (STATE.deploymentRequests||[]).find(r=>r.listKey===listKey&&r.itemId===itemId&&r.status==='pending');
+}
 // Summarise category breakdown for a list, e.g. "2 Squad · 1 Fire Team"
 function catSummary(list) {
   if(!list||!list.length) return '';
@@ -1086,7 +1089,6 @@ function render() {
       <button class="nav-btn ${currentView==='admin-requests'?'active':''}" onclick="navigate('admin-requests')">Purchase Requests${pendingCount()>0?`<span id="pending-badge">${pendingCount()}</span>`:''}</button>
       <button class="nav-btn ${currentView==='admin-deploy'?'active':''}" onclick="navigate('admin-deploy')">Deployments</button>
       <button class="nav-btn ${currentView==='admin-locations'?'active':''}" onclick="navigate('admin-locations')">Locations</button>
-      <button class="nav-btn ${currentView==='admin-notes'?'active':''}" onclick="navigate('admin-notes')">Notes</button>
     `;
   } else {
     badge.textContent = '';
@@ -1111,7 +1113,6 @@ function render() {
     case 'admin-requests': app.innerHTML = renderAdminRequests(); break;
     case 'admin-deploy': app.innerHTML = renderAdminDeploy(); break;
     case 'admin-locations': app.innerHTML = renderAdminLocations(); break;
-    case 'admin-notes': app.innerHTML = renderAdminNotes(); break;
     default: app.innerHTML = renderLogin();
   }
 }
@@ -1675,6 +1676,7 @@ function renderFormationsTab(p) {
         <span class="badge-undeployed" title="Undeployed">${f.undeployed}</span>
         <button class="btn btn-ghost btn-sm" onclick="showDeployModal('formations','${f.id}')">Reposition</button>
       </div>
+      ${pendingDepRequest('formations',f.id)?`<div style="margin-top:4px"><span class="tag tag-gold" style="font-size:10px">⏳ Redeployment pending</span></div>`:''}
       ${deploymentSummary(f)}
     </td>
     <td class="dim" style="word-break:break-word">${esc(f.misc)}</td>
@@ -1706,6 +1708,7 @@ function renderAssetsTab(p) {
         <span class="badge-undeployed" title="Undeployed">${a.undeployed}</span>
         <button class="btn btn-ghost btn-sm" onclick="showDeployModal('assets','${a.id}')">Reposition</button>
       </div>
+      ${pendingDepRequest('assets',a.id)?`<div style="margin-top:4px"><span class="tag tag-gold" style="font-size:10px">⏳ Redeployment pending</span></div>`:''}
       ${deploymentSummary(a)}
     </td>
     <td class="dim" style="word-break:break-word">${esc(a.misc)}</td>
@@ -1732,6 +1735,7 @@ function renderShipsTab(p) {
     <td>${s.role?`<span class="tag tag-grey">${esc(s.role)}</span>`:'<span class="dim">—</span>'}</td>
     <td class="td-num">${s.quantity}</td>
     <td class="dim" style="word-break:break-word">${esc(s.description)}</td>
+    <td class="dim" style="word-break:break-word;font-size:12px">${esc(s.specifications||'')}</td>
     <td>
       <div class="deploy-ctrl">
         <span class="badge-deployed" title="Deployed">${totalDeployed(s)}</span>
@@ -1739,6 +1743,7 @@ function renderShipsTab(p) {
         <span class="badge-undeployed" title="Undeployed">${s.undeployed}</span>
         <button class="btn btn-ghost btn-sm" onclick="showDeployModal('ships','${s.id}')">Reposition</button>
       </div>
+      ${pendingDepRequest('ships',s.id)?`<div style="margin-top:4px"><span class="tag tag-gold" style="font-size:10px">⏳ Redeployment pending</span></div>`:''}
       ${deploymentSummary(s)}
     </td>
     <td class="dim" style="word-break:break-word">${esc(s.misc)}</td>
@@ -1746,8 +1751,8 @@ function renderShipsTab(p) {
   return `<div class="card">
     <div class="card-title">Ships <span class="tag tag-grey">${ships.length}</span></div>
     <div class="tbl-wrap"><table style="width:100%;table-layout:fixed">
-      <colgroup><col style="width:140px"><col style="width:140px"><col style="width:90px"><col style="width:38px"><col><col style="width:220px"><col style="width:110px"></colgroup>
-      <thead><tr><th>Name</th><th>Class</th><th>Role</th><th>Qty</th><th>Description</th><th>Deployed / Undeployed</th><th>Misc</th></tr></thead>
+      <colgroup><col style="width:130px"><col style="width:130px"><col style="width:80px"><col style="width:35px"><col><col style="width:160px"><col style="width:200px"><col style="width:100px"></colgroup>
+      <thead><tr><th>Name</th><th>Class</th><th>Role</th><th>Qty</th><th>Description</th><th>Deployed / Undeployed</th><th>Specifications</th><th>Misc</th></tr></thead>
       <tbody>${rows || '<tr class="empty-row"><td colspan="6">No ships</td></tr>'}</tbody>
     </table></div>
   </div>`;
@@ -1793,6 +1798,7 @@ function renderMiscTab(p) {
         <span class="badge-undeployed" title="Undeployed">${m.undeployed}</span>
         <button class="btn btn-ghost btn-sm" onclick="showDeployModal('miscItems','${m.id}')">Reposition</button>
       </div>
+      ${pendingDepRequest('miscItems',m.id)?`<div style="margin-top:4px"><span class="tag tag-gold" style="font-size:10px">⏳ Redeployment pending</span></div>`:''}
       ${deploymentSummary(m)}
     </td>
     <td class="dim" style="word-break:break-word">${esc(m.misc)}</td>
@@ -2632,7 +2638,7 @@ const MOVABLE_LISTS = { formations:'Formations', assets:'Assets', miscItems:'Mis
 const ADMIN_LIST_FIELDS = {
   formations: ['name','quantity','strength','category','description','misc'],
   assets:     ['name','quantity','category','description','misc'],
-  ships:      ['name','class','role','quantity','description','misc'],
+  ships:      ['name','class','role','quantity','description','specifications','misc'],
   structures: ['name','quantity','category','description','location','locationNote','misc'],
   miscItems:  ['name','quantity','category','description','misc'],
   trophies:   ['name','number','aura','description','conflict','claimedFrom'],
@@ -2641,7 +2647,7 @@ const ADMIN_LIST_FIELDS = {
 };
 function renderAdminListEdit(p, listKey, title, fields) {
   const list = p[listKey]||[];
-  const colWidth = { name:'90px', description:'380px', category:'80px', quantity:'55px', number:'55px', strength:'60px', deployed:'60px', undeployed:'70px', location:'110px', locationNote:'130px', misc:'110px', attachedForces:'110px', aura:'60px', quality:'70px', form:'90px', rank:'70px', specialization:'90px', conflict:'110px', claimedFrom:'110px', effects:'200px', class:'130px', role:'90px' };
+  const colWidth = { name:'90px', description:'380px', category:'80px', quantity:'55px', number:'55px', strength:'60px', deployed:'60px', undeployed:'70px', location:'110px', locationNote:'130px', misc:'110px', attachedForces:'110px', aura:'60px', quality:'70px', form:'90px', rank:'70px', specialization:'90px', conflict:'110px', claimedFrom:'110px', effects:'200px', class:'130px', role:'90px', specifications:'200px' };
   const canMove = listKey in MOVABLE_LISTS;
   const moveOpts = canMove ? Object.entries(MOVABLE_LISTS).filter(([k])=>k!==listKey).map(([k,v])=>`<option value="${k}">${v}</option>`).join('') : '';
   return `<div class="card">
@@ -2849,7 +2855,13 @@ function showShopItemModal(id) {
   modal.innerHTML = `<div class="modal">
     <h2>${item?'Edit':'Add'} Shop Item</h2>
     <div class="form-row"><label>Name</label><input id="si-name" type="text" value="${esc(item?.name||'')}"></div>
-    <div class="form-row"><label>Category</label><input id="si-cat" type="text" value="${esc(item?.category||'')}" placeholder="e.g. Ground Units, Ships, Equipment"></div>
+    <div class="form-row"><label>Category</label>
+      <div class="loc-selector" style="min-width:0">
+        <input type="text" class="loc-search-inp" id="si-cat" value="${esc(item?.category||'')}" placeholder="Select or type a category…" autocomplete="off"
+          oninput="_siCatFilter(this.value)" onfocus="_siCatOpen()" onclick="event.stopPropagation()">
+        <div class="loc-dd" id="si-cat-dd" style="display:none"></div>
+      </div>
+    </div>
     <div class="form-row"><label>Price (credits)</label><input id="si-price" type="number" value="${item?.price||0}"></div>
     <div class="form-row"><label>Unit</label><input id="si-unit" type="text" value="${esc(item?.unit||'unit')}"></div>
     <div class="form-row"><label>Description</label><textarea id="si-desc">${esc(item?.description||'')}</textarea></div>
@@ -2880,6 +2892,27 @@ function deleteShopItem(id) {
   STATE.shopItems = STATE.shopItems.filter(i=>i.id!==id);
   saveState(); notify('Deleted.'); render();
 }
+function _siCatOpen() { _siCatFilter(document.getElementById('si-cat')?.value||''); }
+function _siCatFilter(q) {
+  const dd = document.getElementById('si-cat-dd');
+  const inp = document.getElementById('si-cat');
+  if(!dd||!inp) return;
+  const existing = [...new Set((STATE.shopItems||[]).map(i=>i.category).filter(Boolean))].sort();
+  const filtered = q ? existing.filter(c=>c.toLowerCase().includes(q.toLowerCase())) : existing;
+  const exactMatch = existing.some(c=>c.toLowerCase()===q.toLowerCase());
+  let html = filtered.map(c=>`<div class="loc-opt" onmousedown="event.preventDefault();_siCatSelect('${c.replace(/'/g,"\\'")}')"> ${esc(c)}</div>`).join('');
+  if(q && !exactMatch) html += `<div class="loc-opt loc-create" onmousedown="event.preventDefault();_siCatSelect('${q.replace(/'/g,"\\'")}')">+ Create &ldquo;${esc(q)}&rdquo;</div>`;
+  if(!html) html = `<div class="loc-opt" style="color:var(--text2);cursor:default">No categories yet</div>`;
+  dd.innerHTML = html;
+  dd.style.display = 'block';
+}
+function _siCatSelect(val) {
+  const inp = document.getElementById('si-cat');
+  const dd  = document.getElementById('si-cat-dd');
+  if(inp) inp.value = val;
+  if(dd)  dd.style.display = 'none';
+}
+document.addEventListener('click', ()=>{ const dd=document.getElementById('si-cat-dd'); if(dd) dd.style.display='none'; });
 
 // ============================================================
 // ADMIN PURCHASE REQUESTS
@@ -3326,20 +3359,6 @@ function deleteLoc(id) {
   saveState(); notify('Location deleted.'); render();
 }
 
-// ============================================================
-function renderAdminNotes() {
-  return `<div class="card">
-    <div class="card-title">Admin Notes</div>
-    <textarea id="admin-notes-ta" style="min-height:400px;width:100%">${esc(STATE.adminNotes||'')}</textarea>
-    <div style="margin-top:10px">
-      <button class="btn btn-gold" onclick="saveAdminNotes()">Save Notes</button>
-    </div>
-  </div>`;
-}
-function saveAdminNotes() {
-  STATE.adminNotes = document.getElementById('admin-notes-ta').value;
-  saveState(); notify('Notes saved.');
-}
 
 // ============================================================
 // ADMIN UTILITY ACTIONS

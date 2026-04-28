@@ -2968,19 +2968,29 @@ function renderAdminShop() {
       <button class="btn btn-green btn-sm" onclick="showAddShopItem()">+ Add Item</button>
     </div>
     <div class="tbl-wrap"><table>
-      <thead><tr>${_th(tid,'name','Name')}${_th(tid,'category','Category')}${_th(tid,'price','Price','class="td-num"')}<th>Description</th><th>Prereq</th><th>Actions</th></tr></thead>
+      <thead><tr>${_th(tid,'name','Name')}${_th(tid,'category','Category')}${_th(tid,'unit','Adds To')}${_th(tid,'price','Price','class="td-num"')}<th>Details</th><th>Description</th><th>Prereq</th><th>Actions</th></tr></thead>
       <tbody>
-        ${items.map(item=>`<tr>
-          <td class="gold">${esc(item.name)}</td>
-          <td><span class="tag tag-grey">${esc(item.category)}</span></td>
-          <td class="td-num">${fmtC(item.price)}</td>
-          <td class="dim" style="max-width:220px">${esc(item.description)}</td>
-          <td class="dim">${esc(item.prerequisite)}</td>
-          <td>
-            <button class="btn btn-ghost btn-sm" onclick="showEditShopItem('${item.id}')">Edit</button>
-            <button class="btn btn-red btn-sm" onclick="deleteShopItem('${item.id}')">Delete</button>
-          </td>
-        </tr>`).join('')}
+        ${items.map(item=>{
+          const unitLabel = {formations:'Formations',assets:'Assets',ships:'Ships',structures:'Structures',miscItems:'Misc Items'}[item.unit]||'—';
+          const unitTag = item.unit ? `<span class="tag tag-grey" style="font-size:10px">${unitLabel}</span>` : '<span class="dim">—</span>';
+          let details = '';
+          if(item.unit==='formations' && item.strength) details = `<span class="dim" style="font-size:12px">Str: <strong>${esc(item.strength)}</strong></span>`;
+          else if(item.unit==='ships') details = [item.class&&`<span class="dim" style="font-size:12px">${esc(item.class)}</span>`,item.role&&`<span class="dim" style="font-size:12px">${esc(item.role)}</span>`].filter(Boolean).join(' · ');
+          else if(item.unit==='structures' && item.location) details = `<span class="dim" style="font-size:12px">📍 ${esc(item.location)}</span>`;
+          return `<tr>
+            <td class="gold">${esc(item.name)}</td>
+            <td>${item.category?`<span class="tag tag-grey">${esc(item.category)}</span>`:'<span class="dim">—</span>'}</td>
+            <td>${unitTag}</td>
+            <td class="td-num">${fmtC(item.price)}</td>
+            <td>${details||'<span class="dim">—</span>'}</td>
+            <td class="dim" style="max-width:180px">${esc(item.description)}</td>
+            <td class="dim">${esc(item.prerequisite)}</td>
+            <td style="white-space:nowrap">
+              <button class="btn btn-ghost btn-sm" onclick="showEditShopItem('${item.id}')">Edit</button>
+              <button class="btn btn-red btn-sm" onclick="deleteShopItem('${item.id}')">Delete</button>
+            </td>
+          </tr>`;
+        }).join('')}
       </tbody>
     </table></div>
   </div>`;
@@ -2991,7 +3001,8 @@ function showShopItemModal(id) {
   const item = id ? STATE.shopItems.find(i=>i.id===id) : null;
   const modal = document.createElement('div');
   modal.className = 'modal-overlay';
-  modal.innerHTML = `<div class="modal">
+  const u = item?.unit||'';
+  modal.innerHTML = `<div class="modal" style="max-width:500px">
     <h2>${item?'Edit':'Add'} Shop Item</h2>
     <div class="form-row"><label>Name</label><input id="si-name" type="text" value="${esc(item?.name||'')}"></div>
     <div class="form-row"><label>Category</label>
@@ -3003,14 +3014,29 @@ function showShopItemModal(id) {
     </div>
     <div class="form-row"><label>Price (credits)</label><input id="si-price" type="number" value="${item?.price||0}"></div>
     <div class="form-row"><label>Adds to player's…</label>
-      <select id="si-unit">
+      <select id="si-unit" onchange="_siUnitChange(this.value)">
         <option value="">— None (no unit added on approval) —</option>
-        <option value="formations"  ${(item?.unit||'')==='formations' ?'selected':''}>Formations</option>
-        <option value="assets"      ${(item?.unit||'')==='assets'     ?'selected':''}>Assets</option>
-        <option value="ships"       ${(item?.unit||'')==='ships'      ?'selected':''}>Ships</option>
-        <option value="structures"  ${(item?.unit||'')==='structures' ?'selected':''}>Structures</option>
-        <option value="miscItems"   ${(item?.unit||'')==='miscItems'  ?'selected':''}>Misc Items</option>
+        <option value="formations"  ${u==='formations' ?'selected':''}>Formations</option>
+        <option value="assets"      ${u==='assets'     ?'selected':''}>Assets</option>
+        <option value="ships"       ${u==='ships'      ?'selected':''}>Ships</option>
+        <option value="structures"  ${u==='structures' ?'selected':''}>Structures</option>
+        <option value="miscItems"   ${u==='miscItems'  ?'selected':''}>Misc Items</option>
       </select>
+    </div>
+    <div id="si-extra-formations" style="display:${u==='formations'?'block':'none'}">
+      <div style="border-top:1px solid var(--border);margin:8px 0 10px;padding-top:10px;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text2)">Formation Details</div>
+      <div class="form-row"><label>Strength (per unit)</label><input id="si-strength" type="number" value="${esc(item?.strength||'')}"></div>
+    </div>
+    <div id="si-extra-ships" style="display:${u==='ships'?'block':'none'}">
+      <div style="border-top:1px solid var(--border);margin:8px 0 10px;padding-top:10px;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text2)">Ship Details</div>
+      <div class="form-row"><label>Class</label><input id="si-class" type="text" value="${esc(item?.class||'')}"></div>
+      <div class="form-row"><label>Role</label><input id="si-role" type="text" value="${esc(item?.role||'')}"></div>
+      <div class="form-row"><label>Specifications</label><textarea id="si-specs">${esc(item?.specifications||'')}</textarea></div>
+    </div>
+    <div id="si-extra-structures" style="display:${u==='structures'?'block':'none'}">
+      <div style="border-top:1px solid var(--border);margin:8px 0 10px;padding-top:10px;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text2)">Structure Details</div>
+      <div class="form-row"><label>Location</label><input id="si-location" type="text" value="${esc(item?.location||'')}"></div>
+      <div class="form-row"><label>Location Note</label><input id="si-locnote" type="text" value="${esc(item?.locationNote||'')}"></div>
     </div>
     <div class="form-row"><label>Description</label><textarea id="si-desc">${esc(item?.description||'')}</textarea></div>
     <div class="form-row"><label>Prerequisite</label><input id="si-prereq" type="text" value="${esc(item?.prerequisite||'')}"></div>
@@ -3021,14 +3047,27 @@ function showShopItemModal(id) {
   </div>`;
   document.body.appendChild(modal);
 }
+function _siUnitChange(val) {
+  ['formations','ships','structures'].forEach(k=>{
+    const el = document.getElementById('si-extra-'+k);
+    if(el) el.style.display = val===k ? 'block' : 'none';
+  });
+}
 function saveShopItem(id) {
+  const unit = document.getElementById('si-unit').value;
   const data = {
     name: document.getElementById('si-name').value,
     category: document.getElementById('si-cat').value,
     price: parseFloat(document.getElementById('si-price').value)||0,
-    unit: document.getElementById('si-unit').value,
+    unit,
     description: document.getElementById('si-desc').value,
-    prerequisite: document.getElementById('si-prereq').value
+    prerequisite: document.getElementById('si-prereq').value,
+    strength:      document.getElementById('si-strength')?.value   || '',
+    class:         document.getElementById('si-class')?.value      || '',
+    role:          document.getElementById('si-role')?.value       || '',
+    specifications:document.getElementById('si-specs')?.value      || '',
+    location:      document.getElementById('si-location')?.value   || '',
+    locationNote:  document.getElementById('si-locnote')?.value    || '',
   };
   if(id) { const item = STATE.shopItems.find(i=>i.id===id); if(item) Object.assign(item, data); }
   else { STATE.shopItems = STATE.shopItems||[]; STATE.shopItems.push({ id:newId(), ...data }); }
@@ -3162,10 +3201,10 @@ function approveRequest(id) {
     const listKey = shopItem.unit;
     p[listKey] = p[listKey]||[];
     const newItem = { id:newId(), name:shopItem.name, quantity:req.quantity, category:shopItem.category||'', description:shopItem.description||'', misc:'' };
-    if(listKey === 'formations')  { newItem.strength=''; newItem.deployments=[]; newItem.undeployed=req.quantity; }
+    if(listKey === 'formations')  { newItem.strength=shopItem.strength||''; newItem.deployments=[]; newItem.undeployed=req.quantity; }
     if(listKey === 'assets')      { newItem.deployments=[]; newItem.undeployed=req.quantity; }
-    if(listKey === 'ships')       { newItem.class=''; newItem.role=''; newItem.specifications=''; newItem.deployments=[]; newItem.undeployed=req.quantity; }
-    if(listKey === 'structures')  { newItem.location=''; newItem.locationNote=''; newItem.attachedForces=''; }
+    if(listKey === 'ships')       { newItem.class=shopItem.class||''; newItem.role=shopItem.role||''; newItem.specifications=shopItem.specifications||''; newItem.deployments=[]; newItem.undeployed=req.quantity; }
+    if(listKey === 'structures')  { newItem.location=shopItem.location||''; newItem.locationNote=shopItem.locationNote||''; newItem.attachedForces=''; }
     if(listKey === 'miscItems')   { newItem.deployments=[]; newItem.undeployed=req.quantity; }
     p[listKey].push(newItem);
     notify(`Approved — ${shopItem.name} ×${req.quantity} added to ${p.displayName}'s ${listKey}.`);

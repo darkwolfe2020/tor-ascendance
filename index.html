@@ -2272,52 +2272,71 @@ function renderApprentices() {
 // SHOP
 // ============================================================
 let shopCat = 'All';
+let shopFilter = '';
+function _shopSetFilter(v){ shopFilter=v; render(); }
+function _shopSetCat(c){ shopCat=c; render(); }
 function renderShop() {
   const p = STATE.players[currentPlayer];
-  const cats = ['All', ...new Set((STATE.shopItems||[]).map(i=>i.category))];
-  const items = (STATE.shopItems||[]).filter(i=>shopCat==='All'||i.category===shopCat);
+  const tid = 'shop';
+  const cats = ['All', ...new Set((STATE.shopItems||[]).map(i=>i.category).filter(Boolean)).values()].sort((a,b)=>a==='All'?-1:b==='All'?1:a.localeCompare(b));
+  const q = shopFilter.trim().toLowerCase();
+  const items = _sortData(
+    (STATE.shopItems||[]).filter(i=>{
+      const catOk = shopCat==='All' || i.category===shopCat;
+      const searchOk = !q || i.name.toLowerCase().includes(q) || (i.description||'').toLowerCase().includes(q) || (i.category||'').toLowerCase().includes(q);
+      return catOk && searchOk;
+    }),
+    tid
+  );
   const myRequests = (STATE.purchaseRequests||[]).filter(r=>r.playerId===currentPlayer).slice(-10).reverse();
+  const pendingCount = myRequests.filter(r=>r.status==='pending').length;
 
   return `
-  <div class="grid2">
-    <div>
-      <div class="card">
-        <div class="card-title">Item Catalog</div>
-        <div class="tab-bar" style="flex-wrap:wrap;border-bottom:none;margin-bottom:12px">
-          ${cats.map(c=>`<div class="tab ${shopCat===c?'active':''}" onclick="shopCat='${c}';render()" style="font-size:12px;padding:5px 10px">${c}</div>`).join('')}
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+      <div class="card-title" style="margin:0">Item Catalog <span class="tag tag-grey">${items.length}</span></div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <div class="stat-box" style="margin:0;padding:6px 14px;display:inline-flex;align-items:center;gap:8px">
+          <span style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text2)">Balance</span>
+          <span style="font-weight:700;color:var(--gold)">${fmtC(calcBalance(p))}</span>
         </div>
-        <div class="shop-grid">
-          ${items.map(item=>`<div class="shop-item-card">
-            <h4>${esc(item.name)}</h4>
-            <div class="price">${fmtC(item.price)}</div>
-            <p>${esc(item.description)}</p>
-            ${item.prerequisite?`<div style="margin-top:4px"><span class="tag tag-red" style="font-size:10px">Req: ${esc(item.prerequisite)}</span></div>`:''}
-            <div style="margin-top:8px">
-              <button class="btn btn-gold btn-sm" onclick="showPurchaseModal('${item.id}')">Request Purchase</button>
-            </div>
-          </div>`).join('')}
-          ${items.length===0?'<div class="dim">No items in this category.</div>':''}
-        </div>
+        <input type="text" placeholder="Search items…" value="${esc(shopFilter)}"
+          oninput="_shopSetFilter(this.value)"
+          style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:5px 10px;font-size:13px;font-family:inherit;width:180px">
       </div>
     </div>
-    <div>
-      <div class="stat-box" style="margin-bottom:16px">
-        <div class="label">Your Balance</div>
-        <div class="value">${fmtC(calcBalance(p))}</div>
-      </div>
-      <div class="card">
-        <div class="card-title">Your Purchase Requests</div>
-        ${myRequests.length===0?'<div class="dim">No requests yet.</div>':''}
-        ${myRequests.map(r=>`<div style="padding:8px 0;border-bottom:1px solid var(--border)">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <strong>${esc(r.itemName)}</strong>
-            <span class="tag ${r.status==='approved'?'tag-green':r.status==='denied'?'tag-red':'tag-gold'}">${r.status}</span>
-          </div>
-          <div class="dim" style="font-size:12px;margin-top:2px">${fmtC(r.price)} × ${r.quantity} = ${fmtC(r.price*r.quantity)}</div>
-          ${r.note?`<div class="dim" style="font-size:12px">${esc(r.note)}</div>`:''}
-          ${r.adminNote?`<div style="font-size:12px;color:var(--gold)"">Admin: ${esc(r.adminNote)}</div>`:''}
-        </div>`).join('')}
-      </div>
+    <div class="tab-bar" style="flex-wrap:wrap;border-bottom:1px solid var(--border);margin-bottom:12px;padding-bottom:0">
+      ${cats.map(c=>`<div class="tab ${shopCat===c?'active':''}" onclick="_shopSetCat('${c.replace(/'/g,"\\'")}') " style="font-size:12px;padding:5px 12px">${esc(c)}</div>`).join('')}
+    </div>
+    <div class="tbl-wrap"><table style="width:100%;table-layout:fixed">
+      <colgroup><col style="width:160px"><col style="width:110px"><col style="width:90px"><col><col style="width:130px"><col style="width:130px"></colgroup>
+      <thead><tr>${_th(tid,'name','Name')}${_th(tid,'category','Category')}${_th(tid,'price','Price','class="td-num"')}<th>Description</th><th>Prerequisite</th><th></th></tr></thead>
+      <tbody>
+        ${items.map(item=>`<tr>
+          <td class="gold" style="word-break:break-word">${esc(item.name)}</td>
+          <td>${item.category?`<span class="tag tag-grey">${esc(item.category)}</span>`:'<span class="dim">—</span>'}</td>
+          <td class="td-num" style="font-weight:700;color:var(--gold2)">${fmtC(item.price)}</td>
+          <td class="dim" style="word-break:break-word">${esc(item.description)}</td>
+          <td>${item.prerequisite?`<span class="tag tag-red" style="font-size:10px">Req: ${esc(item.prerequisite)}</span>`:'<span class="dim">—</span>'}</td>
+          <td style="text-align:right"><button class="btn btn-gold btn-sm" onclick="showPurchaseModal('${item.id}')">Request Purchase</button></td>
+        </tr>`).join('')}
+        ${items.length===0?`<tr class="empty-row"><td colspan="6">${q||shopCat!=='All'?'No items match your filter.':'No items available.'}</td></tr>`:''}
+      </tbody>
+    </table></div>
+  </div>
+  <div class="card" style="margin-top:12px">
+    <div class="card-title">Your Purchase Requests ${pendingCount?`<span class="tag tag-gold">${pendingCount} pending</span>`:''}</div>
+    ${myRequests.length===0?'<div class="dim">No requests yet.</div>':''}
+    <div style="display:flex;flex-direction:column;gap:0">
+      ${myRequests.map(r=>`<div style="padding:8px 0;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap">
+        <div style="flex:1;min-width:160px">
+          <strong>${esc(r.itemName)}</strong>
+          <span class="dim" style="font-size:12px;margin-left:8px">${fmtC(r.price)} × ${r.quantity} = ${fmtC(r.price*r.quantity)}</span>
+        </div>
+        ${r.note?`<div class="dim" style="font-size:12px;flex-basis:100%">${esc(r.note)}</div>`:''}
+        ${r.adminNote?`<div style="font-size:12px;color:var(--gold);flex-basis:100%">Admin: ${esc(r.adminNote)}</div>`:''}
+        <span class="tag ${r.status==='approved'?'tag-green':r.status==='denied'?'tag-red':'tag-gold'}">${r.status}</span>
+      </div>`).join('')}
     </div>
   </div>`;
 }

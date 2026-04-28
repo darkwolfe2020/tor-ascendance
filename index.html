@@ -1798,11 +1798,10 @@ function renderShipsTab(p) {
   const ships = p.ships||[];
   const rows = _sortData(ships,tid).map(s => `<tr>
     <td class="gold" style="word-break:break-word">${esc(s.name)}</td>
-    <td><span class="tag tag-blue">${esc(s.class||'')}</span></td>
+    <td>${s.class?`<span class="tag tag-blue">${esc(s.class)}</span>`:'<span class="dim">—</span>'}</td>
     <td>${s.role?`<span class="tag tag-grey">${esc(s.role)}</span>`:'<span class="dim">—</span>'}</td>
     <td class="td-num">${s.quantity}</td>
     <td class="dim" style="word-break:break-word">${esc(s.description)}</td>
-    <td class="dim" style="word-break:break-word;font-size:12px">${esc(s.specifications||'')}</td>
     <td>
       <div class="deploy-ctrl">
         <span class="badge-deployed" title="Deployed">${totalDeployed(s)}</span>
@@ -1813,6 +1812,7 @@ function renderShipsTab(p) {
       ${pendingDepRequest('ships',s.id)?`<div style="margin-top:4px"><span class="tag tag-gold" style="font-size:10px">⏳ Redeployment pending</span></div>`:''}
       ${deploymentSummary(s)}
     </td>
+    <td class="dim" style="word-break:break-word;font-size:12px">${esc(s.specifications||'')}</td>
     <td class="dim" style="word-break:break-word">${esc(s.misc)}</td>
   </tr>`).join('');
   return `<div class="card">
@@ -1820,7 +1820,7 @@ function renderShipsTab(p) {
     <div class="tbl-wrap"><table style="width:100%;table-layout:fixed">
       <colgroup><col style="width:130px"><col style="width:130px"><col style="width:80px"><col style="width:35px"><col><col style="width:160px"><col style="width:200px"><col style="width:100px"></colgroup>
       <thead><tr>${_th(tid,'name','Name')}${_th(tid,'class','Class')}${_th(tid,'role','Role')}${_th(tid,'quantity','Qty','class="td-num"')}<th>Description</th><th>Deployed / Undeployed</th><th>Specifications</th><th>Misc</th></tr></thead>
-      <tbody>${rows || '<tr class="empty-row"><td colspan="6">No ships</td></tr>'}</tbody>
+      <tbody>${rows || '<tr class="empty-row"><td colspan="8">No ships</td></tr>'}</tbody>
     </table></div>
   </div>`;
 }
@@ -2341,18 +2341,31 @@ function renderShop() {
       ${cats.map(c=>`<div class="tab ${shopCat===c?'active':''}" onclick="_shopSetCat('${c.replace(/'/g,"\\'")}') " style="font-size:12px;padding:5px 12px">${esc(c)}</div>`).join('')}
     </div>
     <div class="tbl-wrap"><table style="width:100%;table-layout:fixed">
-      <colgroup><col style="width:160px"><col style="width:110px"><col style="width:90px"><col><col style="width:130px"><col style="width:130px"></colgroup>
-      <thead><tr>${_th(tid,'name','Name')}${_th(tid,'category','Category')}${_th(tid,'price','Price','class="td-num"')}<th>Description</th><th>Prerequisite</th><th></th></tr></thead>
+      <colgroup><col style="width:150px"><col style="width:100px"><col style="width:85px"><col><col style="width:170px"><col style="width:120px"><col style="width:120px"></colgroup>
+      <thead><tr>${_th(tid,'name','Name')}${_th(tid,'category','Category')}${_th(tid,'price','Price','class="td-num"')}<th>Description</th><th>Details</th><th>Prerequisite</th><th></th></tr></thead>
       <tbody>
-        ${items.map(item=>`<tr>
-          <td class="gold" style="word-break:break-word">${esc(item.name)}</td>
-          <td>${item.category?`<span class="tag tag-grey">${esc(item.category)}</span>`:'<span class="dim">—</span>'}</td>
-          <td class="td-num" style="font-weight:700;color:var(--gold2)">${fmtC(item.price)}</td>
-          <td class="dim" style="word-break:break-word">${esc(item.description)}</td>
-          <td>${item.prerequisite?`<span class="tag tag-red" style="font-size:10px">Req: ${esc(item.prerequisite)}</span>`:'<span class="dim">—</span>'}</td>
-          <td style="text-align:right"><button class="btn btn-gold btn-sm" onclick="showPurchaseModal('${item.id}')">Request Purchase</button></td>
-        </tr>`).join('')}
-        ${items.length===0?`<tr class="empty-row"><td colspan="6">${q||shopCat!=='All'?'No items match your filter.':'No items available.'}</td></tr>`:''}
+        ${items.map(item=>{
+          let details = '<span class="dim">—</span>';
+          if(item.unit==='formations' && item.strength) details = `<span class="dim" style="font-size:12px">Str: <strong>${esc(item.strength)}</strong></span>`;
+          else if(item.unit==='ships') {
+            const parts = [
+              item.class ? `<span class="tag tag-blue" style="font-size:10px">${esc(item.class)}</span>` : '',
+              item.role  ? `<span class="tag tag-grey" style="font-size:10px">${esc(item.role)}</span>`  : '',
+              item.specifications ? `<div class="dim" style="font-size:11px;margin-top:3px">${esc(item.specifications)}</div>` : ''
+            ].filter(Boolean);
+            if(parts.length) details = `<div style="display:flex;flex-wrap:wrap;gap:3px;align-items:flex-start">${parts.join('')}</div>`;
+          } else if(item.unit==='structures' && item.location) details = `<span class="dim" style="font-size:12px">📍 ${esc(item.location)}</span>`;
+          return `<tr>
+            <td class="gold" style="word-break:break-word">${esc(item.name)}</td>
+            <td>${item.category?`<span class="tag tag-grey">${esc(item.category)}</span>`:'<span class="dim">—</span>'}</td>
+            <td class="td-num" style="font-weight:700;color:var(--gold2)">${fmtC(item.price)}</td>
+            <td class="dim" style="word-break:break-word">${esc(item.description)}</td>
+            <td>${details}</td>
+            <td>${item.prerequisite?`<span class="tag tag-red" style="font-size:10px">Req: ${esc(item.prerequisite)}</span>`:'<span class="dim">—</span>'}</td>
+            <td style="text-align:right"><button class="btn btn-gold btn-sm" onclick="showPurchaseModal('${item.id}')">Request Purchase</button></td>
+          </tr>`;
+        }).join('')}
+        ${items.length===0?`<tr class="empty-row"><td colspan="7">${q||shopCat!=='All'?'No items match your filter.':'No items available.'}</td></tr>`:''}
       </tbody>
     </table></div>
   </div>

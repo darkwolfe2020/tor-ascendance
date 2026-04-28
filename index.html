@@ -1144,7 +1144,9 @@ function render() {
   if(currentPlayer && !isAdmin && currentView !== 'login' && currentView !== 'shop') {
     _viewHtml = renderPendingBanner() + _viewHtml;
   }
+  const _sy = window.scrollY;
   app.innerHTML = _viewHtml;
+  window.scrollTo(0, _sy);
 }
 
 function pendingCount() {

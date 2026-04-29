@@ -2975,23 +2975,79 @@ function adminAddPopRow(pid) {
 // ============================================================
 // ADMIN SHOP
 // ============================================================
+let _adminShopMode = 'edit'; // 'edit' | 'preview'
+function _adminShopToggleMode(m) { _adminShopMode = m; render(); }
+
 function renderAdminShop() {
+  const modeBar = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <div style="display:flex;gap:4px">
+        <button class="btn btn-sm ${_adminShopMode==='edit'?'btn-gold':'btn-ghost'}" onclick="_adminShopToggleMode('edit')">✏ Edit Mode</button>
+        <button class="btn btn-sm ${_adminShopMode==='preview'?'btn-gold':'btn-ghost'}" onclick="_adminShopToggleMode('preview')">👁 Player View</button>
+      </div>
+      ${_adminShopMode==='edit' ? `<button class="btn btn-green btn-sm" onclick="showAddShopItem()">+ Add Item</button>` : ''}
+    </div>`;
+
+  if(_adminShopMode==='preview') {
+    // ── Player-style filtered view ──
+    const tid='adminShopPreview';
+    const cats = ['All',...new Set((STATE.shopItems||[]).map(i=>i.category).filter(Boolean)).values()].sort((a,b)=>a==='All'?-1:b==='All'?1:a.localeCompare(b));
+    const q = shopFilter.trim().toLowerCase();
+    const items = _sortData(
+      (STATE.shopItems||[]).filter(i=>{
+        const catOk = shopCat==='All'||i.category===shopCat;
+        const searchOk = !q||i.name.toLowerCase().includes(q)||(i.description||'').toLowerCase().includes(q)||(i.category||'').toLowerCase().includes(q);
+        return catOk&&searchOk;
+      }), tid);
+    return modeBar + `<div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+        <div class="card-title" style="margin:0">Item Catalog <span class="tag tag-grey">${items.length}</span></div>
+        <input type="text" placeholder="Search items…" value="${esc(shopFilter)}"
+          oninput="_shopSetFilter(this.value)"
+          style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:5px 10px;font-size:13px;font-family:inherit;width:180px">
+      </div>
+      <div class="tab-bar" style="flex-wrap:wrap;border-bottom:1px solid var(--border);margin-bottom:12px">
+        ${cats.map(c=>`<div class="tab ${shopCat===c?'active':''}" onclick="_shopSetCat('${c.replace(/'/g,"\\'")}') " style="font-size:12px;padding:5px 12px">${esc(c)}</div>`).join('')}
+      </div>
+      <div class="tbl-wrap"><table style="width:100%;table-layout:fixed">
+        <colgroup><col style="width:150px"><col style="width:100px"><col style="width:85px"><col><col style="width:170px"><col style="width:120px"><col style="width:110px"></colgroup>
+        <thead><tr>${_th(tid,'name','Name')}${_th(tid,'category','Category')}${_th(tid,'price','Price','class="td-num"')}<th>Description</th><th>Details</th><th>Prerequisite</th><th>Actions</th></tr></thead>
+        <tbody>
+          ${items.map(item=>{
+            let details = '<span class="dim">—</span>';
+            if(item.unit==='formations'&&item.strength) details=`<span class="dim" style="font-size:12px">Str: <strong>${esc(item.strength)}</strong></span>`;
+            else if(item.unit==='ships'){const parts=[item.class?`<span class="tag tag-blue" style="font-size:10px">${esc(item.class)}</span>`:'',item.role?`<span class="tag tag-grey" style="font-size:10px">${esc(item.role)}</span>`:'',item.specifications?`<div class="dim" style="font-size:11px;margin-top:3px">${esc(item.specifications)}</div>`:''].filter(Boolean);if(parts.length)details=`<div style="display:flex;flex-wrap:wrap;gap:3px;align-items:flex-start">${parts.join('')}</div>`;}
+            else if(item.unit==='structures'&&item.location) details=`<span class="dim" style="font-size:12px">📍 ${esc(item.location)}</span>`;
+            return `<tr>
+              <td class="gold" style="word-break:break-word">${esc(item.name)}</td>
+              <td>${item.category?`<span class="tag tag-grey">${esc(item.category)}</span>`:'<span class="dim">—</span>'}</td>
+              <td class="td-num" style="font-weight:700;color:var(--gold2)">${fmtC(item.price)}</td>
+              <td class="dim" style="word-break:break-word">${esc(item.description)}</td>
+              <td>${details}</td>
+              <td>${item.prerequisite?`<span class="tag tag-red" style="font-size:10px">Req: ${esc(item.prerequisite)}</span>`:'<span class="dim">—</span>'}</td>
+              <td style="text-align:right"><button class="btn btn-ghost btn-sm" onclick="showEditShopItem('${item.id}')">Edit</button></td>
+            </tr>`;
+          }).join('')}
+          ${items.length===0?`<tr class="empty-row"><td colspan="7">${q||shopCat!=='All'?'No items match your filter.':'No items in shop.'}</td></tr>`:''}
+        </tbody>
+      </table></div>
+    </div>`;
+  }
+
+  // ── Edit mode (default) ──
   const tid='adminShop';
   const items = _sortData(STATE.shopItems||[], tid);
-  return `<div class="card">
-    <div class="card-title">Shop Items (${(STATE.shopItems||[]).length})
-      <button class="btn btn-green btn-sm" onclick="showAddShopItem()">+ Add Item</button>
-    </div>
+  return modeBar + `<div class="card">
     <div class="tbl-wrap"><table>
       <thead><tr>${_th(tid,'name','Name')}${_th(tid,'category','Category')}${_th(tid,'unit','Adds To')}${_th(tid,'price','Price','class="td-num"')}<th>Details</th><th>Description</th><th>Prereq</th><th>Actions</th></tr></thead>
       <tbody>
         ${items.map(item=>{
           const unitLabel = {formations:'Formations',assets:'Assets',ships:'Ships',structures:'Structures',miscItems:'Misc Items'}[item.unit]||'—';
-          const unitTag = item.unit ? `<span class="tag tag-grey" style="font-size:10px">${unitLabel}</span>` : '<span class="dim">—</span>';
-          let details = '';
-          if(item.unit==='formations' && item.strength) details = `<span class="dim" style="font-size:12px">Str: <strong>${esc(item.strength)}</strong></span>`;
-          else if(item.unit==='ships') details = [item.class&&`<span class="dim" style="font-size:12px">${esc(item.class)}</span>`,item.role&&`<span class="dim" style="font-size:12px">${esc(item.role)}</span>`].filter(Boolean).join(' · ');
-          else if(item.unit==='structures' && item.location) details = `<span class="dim" style="font-size:12px">📍 ${esc(item.location)}</span>`;
+          const unitTag = item.unit?`<span class="tag tag-grey" style="font-size:10px">${unitLabel}</span>`:'<span class="dim">—</span>';
+          let details='';
+          if(item.unit==='formations'&&item.strength) details=`<span class="dim" style="font-size:12px">Str: <strong>${esc(item.strength)}</strong></span>`;
+          else if(item.unit==='ships') details=[item.class&&`<span class="dim" style="font-size:12px">${esc(item.class)}</span>`,item.role&&`<span class="dim" style="font-size:12px">${esc(item.role)}</span>`].filter(Boolean).join(' · ');
+          else if(item.unit==='structures'&&item.location) details=`<span class="dim" style="font-size:12px">📍 ${esc(item.location)}</span>`;
           return `<tr>
             <td class="gold">${esc(item.name)}</td>
             <td>${item.category?`<span class="tag tag-grey">${esc(item.category)}</span>`:'<span class="dim">—</span>'}</td>
@@ -3006,6 +3062,7 @@ function renderAdminShop() {
             </td>
           </tr>`;
         }).join('')}
+        ${items.length===0?`<tr class="empty-row"><td colspan="8">No shop items.</td></tr>`:''}
       </tbody>
     </table></div>
   </div>`;

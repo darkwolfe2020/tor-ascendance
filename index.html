@@ -279,7 +279,7 @@ function buildSeedState() {
 
   // Helper to make a player skeleton
   function mkPlayer(id, displayName, charData, finances, structures, formations, assets, miscItems, income, production, populations, trophies, apprentices, artifacts, ships) {
-    return { id, displayName, character: charData, finances, structures: structures||[], formations: formations||[], assets: assets||[], miscItems: miscItems||[], income: income||[], production: production||[], populations: populations||[], trophies: trophies||[], apprentices: apprentices||[], artifacts: artifacts||[], ships: ships||[] };
+    return { id, displayName, character: charData, finances, structures: structures||[], formations: formations||[], assets: assets||[], miscItems: miscItems||[], income: income||[], production: production||[], populations: populations||[], trophies: trophies||[], apprentices: apprentices||[], artifacts: artifacts||[], ships: ships||[], notables: [] };
   }
 
   // ----- FASHODA -----
@@ -1054,6 +1054,50 @@ function getStructureForces(p, structName) {
   });
   return forces;
 }
+function getPersonForces(p, personName) {
+  // formations/assets/misc deployed to this person, plus ships with nested forces aboard
+  const forces = getStructureForces(p, personName);
+  (p.ships||[]).forEach(item => {
+    (item.deployments||[]).forEach(d => {
+      if(d.location===personName && Number(d.qty)>0) {
+        const aboard = getStructureForces(p, item.name); // units deployed to this ship
+        forces.push({ name:item.name, qty:Number(d.qty), type:'Ship', category:item.class||'', role:item.role||'', note:d.note||'', strength:'', aboard });
+      }
+    });
+  });
+  return forces;
+}
+function renderPersonForces(forces) {
+  if(!forces.length) return '';
+  const typeColor = { Formation:'tag-red', Asset:'tag-grey', Misc:'tag-blue', Ship:'tag-gold' };
+  const rows = forces.flatMap(f => {
+    const mainRow = `<tr>
+      <td class="gold" style="font-size:12px">${f.type==='Ship'?'🚀 ':''} ${esc(f.name)}</td>
+      <td><span class="tag ${typeColor[f.type]||'tag-grey'}" style="font-size:10px">${f.type}</span></td>
+      <td class="td-num" style="font-size:12px">${f.qty}</td>
+      <td class="dim" style="font-size:11px">${f.strength?`${(Number(f.strength)*Number(f.qty)).toLocaleString()} men`:(f.type==='Ship'&&f.role?esc(f.role):'—')}</td>
+      <td class="dim" style="font-size:11px">${f.category?esc(f.category):'—'}</td>
+      <td class="dim" style="font-size:11px">${f.note?`<em>${esc(f.note)}</em>`:'—'}</td>
+    </tr>`;
+    if(f.type!=='Ship' || !f.aboard?.length) return [mainRow];
+    const nestedRows = f.aboard.map(a=>`<tr style="background:var(--bg2)">
+      <td style="padding-left:24px;font-size:11px;color:var(--text2)">↳ ${esc(a.name)}</td>
+      <td><span class="tag ${typeColor[a.type]||'tag-grey'}" style="font-size:9px">${a.type}</span></td>
+      <td class="td-num" style="font-size:11px">${a.qty}</td>
+      <td class="dim" style="font-size:11px">${a.strength?`${(Number(a.strength)*Number(a.qty)).toLocaleString()} men`:'—'}</td>
+      <td class="dim" style="font-size:11px">${a.category?esc(a.category):'—'}</td>
+      <td class="dim" style="font-size:11px">${a.note?`<em>${esc(a.note)}</em>`:'—'}</td>
+    </tr>`).join('');
+    return [mainRow, nestedRows];
+  }).join('');
+  return `<div style="border-top:1px solid var(--border);margin-top:10px;padding-top:8px">
+    <div style="color:var(--text2);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Assigned Forces</div>
+    <div class="tbl-wrap"><table style="width:100%">
+      <thead><tr><th style="font-size:10px">Unit</th><th style="font-size:10px">Type</th><th style="font-size:10px" class="td-num">Qty</th><th style="font-size:10px">Strength / Role</th><th style="font-size:10px">Category</th><th style="font-size:10px">Note</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+  </div>`;
+}
 function renderAttachedForces(forces) {
   if(!forces.length) return '<span class="dim">—</span>';
   return forces.map(f=>`<div style="font-size:11px;line-height:1.8"><span class="tag ${f.type==='Formation'?'tag-red':f.type==='Misc'?'tag-blue':'tag-grey'}" style="font-size:10px">${f.qty}×</span> ${esc(f.name)}${f.strength?` <span class="dim">(${(Number(f.strength)*Number(f.qty)).toLocaleString()} men)</span>`:''}${f.note?` <em style="color:var(--text2)">(${esc(f.note)})</em>`:''}</div>`).join('');
@@ -1395,6 +1439,7 @@ function renderCharacter() {
   </div>
   ${renderTrophiesSection(p)}
   ${renderApprenticesSection(p)}
+  ${renderNotablesSection(p)}
   ${renderArtifactsSection(p)}
   ${renderFactionSection(p)}
   `;
@@ -1554,6 +1599,24 @@ function renderApprenticesSection(p) {
   </div>`;
 }
 
+function renderNotablesSection(p) {
+  if(!(p.notables||[]).length) return '';
+  const tid='notablesSec';
+  const rows = _sortData(p.notables||[], tid).map(n=>`<tr>
+    <td class="gold">${esc(n.name)}</td>
+    <td><span class="tag tag-blue">${esc(n.role||'')}</span></td>
+    <td>${esc(n.species||'')}</td>
+    <td class="dim">${esc(n.location||'')}</td>
+    <td class="dim" style="max-width:280px">${esc(n.description||'')}</td>
+  </tr>`).join('');
+  return `<div class="card">
+    <div class="card-title">Notables</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr>${_th(tid,'name','Name')}${_th(tid,'role','Role')}${_th(tid,'species','Species')}${_th(tid,'location','Location')}<th>Description</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+  </div>`;
+}
 function renderArtifactsSection(p) {
   if(!(p.artifacts||[]).length) return '';
   const tid='artifacts';
@@ -1580,8 +1643,8 @@ function renderAssets() {
   const p = STATE.players[currentPlayer];
   if(!p) return '';
 
-  const tabs = ['formations','assets','ships','structures','misc','apprentices','population'];
-  const tabLabels = { formations:'Formations', assets:'Assets', ships:'Ships', structures:'Structures', misc:'Misc Items', apprentices:'Apprentices', population:'Population' };
+  const tabs = ['formations','assets','ships','structures','misc','apprentices','notables','population'];
+  const tabLabels = { formations:'Formations', assets:'Assets', ships:'Ships', structures:'Structures', misc:'Misc Items', apprentices:'Apprentices', notables:'Notables', population:'Population' };
 
   return `
   <div class="tab-bar">
@@ -1593,6 +1656,7 @@ function renderAssets() {
   ${assetsTab==='structures' ? renderStructuresTab(p) : ''}
   ${assetsTab==='misc' ? renderMiscTab(p) : ''}
   ${assetsTab==='apprentices' ? renderApprentices() : ''}
+  ${assetsTab==='notables' ? renderNotables() : ''}
   ${assetsTab==='population' ? renderPopulation() : ''}
   `;
 }
@@ -1604,25 +1668,40 @@ let _deployedOpen = {};
 let _deployedSubOpen = {};
 
 function _buildLocationTree(p) {
-  // tree: { worldName: { structures: { structName: { obj, forces:[] } }, generic: [] } }
+  // tree: { worldName: { structures: { structName: { obj, forces:[] } }, ships: { shipName: { obj, qty, note, forces:[] } }, generic: [] } }
   const tree = {};
-
-  const ensureWorld = w => { if(!tree[w]) tree[w] = { structures:{}, generic:[] }; };
+  const ensureWorld = w => { if(!tree[w]) tree[w] = { structures:{}, ships:{}, generic:[] }; };
 
   // Register every structure under its planet
   (p.structures||[]).forEach(s => {
     const world = (s.location||'').trim() || 'Unknown';
     ensureWorld(world);
-    if(s.name&&!tree[world].structures[s.name]) {
+    if(s.name && !tree[world].structures[s.name]) {
       tree[world].structures[s.name] = { obj:s, forces:[] };
     }
   });
-
-  // Helper: look up if a name matches a structure and return its world
   const structIndex = {};
   (p.structures||[]).forEach(s => { if(s.name) structIndex[s.name] = (s.location||'').trim()||'Unknown'; });
 
-  // Place deployed formations/assets/misc
+  // Register ships under their deployment locations (ship itself = named sub-location like a structure)
+  const shipWorldMap = {}; // ship name → first world it's placed in
+  (p.ships||[]).forEach(s => {
+    if(!s.name) return;
+    (s.deployments||[]).forEach(d => {
+      if(!(Number(d.qty)>0)) return;
+      const loc = (d.location||'').trim();
+      const world = loc || 'Unassigned';
+      ensureWorld(world);
+      if(!tree[world].ships[s.name]) {
+        tree[world].ships[s.name] = { obj:s, qty:Number(d.qty), note:d.note||'', forces:[] };
+        if(!shipWorldMap[s.name]) shipWorldMap[s.name] = world;
+      } else {
+        tree[world].ships[s.name].qty += Number(d.qty);
+      }
+    });
+  });
+
+  // Place deployed formations/assets/misc — check structures, then ships, then planets, then fallback
   ['formations','assets','miscItems'].forEach(key => {
     const type = key==='formations'?'Formation':key==='assets'?'Asset':'Misc';
     (p[key]||[]).forEach(item => {
@@ -1631,17 +1710,19 @@ function _buildLocationTree(p) {
         const loc = (d.location||'').trim();
         const entry = { type, name:item.name, qty:d.qty, category:item.category||'', note:d.note||'', misc:item.misc||'', strength:item.strength||'' };
         if(structIndex[loc]!==undefined) {
-          // This location is a known structure name
           const world = structIndex[loc];
           ensureWorld(world);
           if(!tree[world].structures[loc]) tree[world].structures[loc] = { obj:null, forces:[] };
           tree[world].structures[loc].forces.push(entry);
+        } else if(shipWorldMap[loc]!==undefined) {
+          // Force is aboard a named ship — nest it under that ship
+          const world = shipWorldMap[loc];
+          tree[world].ships[loc].forces.push(entry);
         } else if(PLANETS.includes(loc)) {
           ensureWorld(loc);
           tree[loc].generic.push(entry);
         } else {
-          // Unknown / custom location — treat as its own top-level world
-          const world = loc||'Unassigned';
+          const world = loc || 'Unassigned';
           ensureWorld(world);
           tree[world].generic.push(entry);
         }
@@ -1718,6 +1799,57 @@ function _renderSubSection(world, label, forces, structObj) {
   </div>`;
 }
 
+function _renderShipSection(world, shipName, shipData) {
+  const k = world+'::ship::'+shipName;
+  const open = !!_deployedSubOpen[k];
+  const s = shipData.obj;
+  const wEsc = world.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  const kEsc = ('ship::'+shipName).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  const typeColor = { Formation:'tag-red', Asset:'tag-grey', Misc:'tag-blue' };
+  let body = '';
+  if(open) {
+    body += `<div class="struct-info">
+      <span style="color:var(--gold);font-weight:600">🚀 ${esc(shipName)}</span>
+      ${s.class?`  <span class="tag tag-blue" style="font-size:10px">${esc(s.class)}</span>`:''}
+      ${s.role?`  <span class="tag tag-grey" style="font-size:10px">${esc(s.role)}</span>`:''}
+      ${s.quantity>1?`  <span class="dim" style="font-size:11px">×${s.quantity} ships</span>`:''}
+      ${s.description?`<div class="dim" style="margin-top:4px;font-size:12px">${esc(s.description)}</div>`:''}
+      ${s.specifications?`<div style="margin-top:3px;font-size:11px;color:var(--text2)">${esc(s.specifications)}</div>`:''}
+    </div>`;
+    if(shipData.forces.length) {
+      const rows = shipData.forces.map(e=>`<tr>
+        <td class="gold">${esc(e.name)}</td>
+        <td><span class="tag ${typeColor[e.type]||'tag-grey'}">${e.type}</span></td>
+        <td>${e.qty}</td>
+        <td class="dim">${e.strength?(Number(e.strength)*Number(e.qty)).toLocaleString()+' men':'—'}</td>
+        <td class="dim">${esc(e.category)}</td>
+        <td class="dim">${e.note?`<em>${esc(e.note)}</em>`:'—'}</td>
+      </tr>`).join('');
+      body += `<div class="tbl-wrap"><table>
+        <thead><tr><th>Aboard</th><th>Type</th><th>Qty</th><th>Strength</th><th>Category</th><th>Note</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>`;
+    } else {
+      body += `<div class="dim" style="font-size:12px;padding:4px 0">No forces aboard.</div>`;
+    }
+  }
+  const totalAboard = shipData.forces.reduce((s,e)=>s+Number(e.qty),0);
+  const totalStrength = depStrength(shipData.forces);
+  const meta = [
+    `${shipData.qty} ship${shipData.qty!==1?'s':''}`,
+    totalAboard>0?`${totalAboard} unit${totalAboard!==1?'s':''} aboard`:null,
+    totalStrength>0?`${totalStrength.toLocaleString()} men`:null,
+    s.class||null
+  ].filter(Boolean).join(' · ');
+  return `<div class="subloc-row">
+    <div class="subloc-hdr" onclick="_deploySubToggle('${wEsc}','${kEsc}')">
+      <span class="subloc-name">🚀 ${esc(shipName)}</span>
+      <span class="subloc-meta">${meta} ${open?'▲':'▼'}</span>
+    </div>
+    ${open?`<div class="subloc-body">${body}</div>`:''}
+  </div>`;
+}
+
 function renderDeployed() {
   const p = STATE.players[currentPlayer];
   if(!p) return '';
@@ -1734,27 +1866,35 @@ function renderDeployed() {
     const wd = tree[world];
     const open = !!_deployedOpen[world];
     const structNames = Object.keys(wd.structures);
-    const allForces = [...wd.generic, ...structNames.flatMap(n=>wd.structures[n].forces)];
-    const totalUnits = allForces.reduce((s,e)=>s+Number(e.qty),0);
+    const shipNames   = Object.keys(wd.ships||{});
+    const allForces = [
+      ...wd.generic,
+      ...structNames.flatMap(n=>wd.structures[n].forces),
+      ...shipNames.flatMap(n=>(wd.ships[n].forces||[]))
+    ];
+    const totalUnits = allForces.reduce((s,e)=>s+Number(e.qty),0)
+      + shipNames.reduce((s,n)=>s+Number(wd.ships[n].qty||0),0);
     const totalStrength = depStrength(allForces);
 
     let body = '';
     if(open) {
-      // Generic section (only if there are generic forces)
       if(wd.generic.length) body += _renderSubSection(world,'Generic',wd.generic,null);
-      // One section per structure
-      structNames.forEach(n=>{
-        const sd = wd.structures[n];
-        body += _renderSubSection(world,n,sd.forces,sd.obj);
-      });
+      structNames.forEach(n=>{ body += _renderSubSection(world,n,wd.structures[n].forces,wd.structures[n].obj); });
+      shipNames.forEach(n=>{ body += _renderShipSection(world,n,wd.ships[n]); });
     }
 
     const wEsc = world.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    const metaParts = [
+      totalUnits>0?`${totalUnits} unit${totalUnits!==1?'s':''}`:null,
+      totalStrength>0?`${totalStrength.toLocaleString()} men`:null,
+      structNames.length?`${structNames.length} structure${structNames.length!==1?'s':''}`:null,
+      shipNames.length?`${shipNames.length} ship${shipNames.length!==1?'s':''}`:null
+    ].filter(Boolean).join(' · ') || 'Empty';
     return `<div class="world-card">
       <div class="world-hdr" onclick="_deployToggle('${wEsc}')">
         <span style="font-size:16px">📍</span>
         <span class="world-name">${esc(world)}</span>
-        <span class="world-meta">${totalUnits} unit${totalUnits!==1?'s':''}${totalStrength>0?` · ${totalStrength.toLocaleString()} men`:''} · ${structNames.length} structure${structNames.length!==1?'s':''}</span>
+        <span class="world-meta">${metaParts}</span>
         <span class="chevron">${open?'▲':'▼'}</span>
       </div>
       ${open?`<div class="world-body">${body}</div>`:''}
@@ -1832,25 +1972,42 @@ function renderAssetsTab(p) {
 function renderShipsTab(p) {
   const tid='ships';
   const ships = p.ships||[];
-  const rows = _sortData(ships,tid).map(s => `<tr>
-    <td class="gold" style="word-break:break-word">${esc(s.name)}${_imgBtn(s.imageUrl,s.name)}</td>
-    <td>${s.class?`<span class="tag tag-blue">${esc(s.class)}</span>`:'<span class="dim">—</span>'}</td>
-    <td>${s.role?`<span class="tag tag-grey">${esc(s.role)}</span>`:'<span class="dim">—</span>'}</td>
-    <td class="td-num">${s.quantity}</td>
-    <td class="dim" style="word-break:break-word">${esc(s.description)}</td>
-    <td>
-      <div class="deploy-ctrl">
-        <span class="badge-deployed" title="Deployed">${totalDeployed(s)}</span>
-        <span class="sep">/</span>
-        <span class="badge-undeployed" title="Undeployed">${s.undeployed}</span>
-        <button class="btn btn-ghost btn-sm" onclick="showDeployModal('ships','${s.id}')">Reposition</button>
-      </div>
-      ${pendingDepRequest('ships',s.id)?`<div style="margin-top:4px"><span class="tag tag-gold" style="font-size:10px">⏳ Redeployment pending</span></div>`:''}
-      ${deploymentSummary(s)}
-    </td>
-    <td class="dim" style="word-break:break-word;font-size:12px">${esc(s.specifications||'')}</td>
-    <td class="dim" style="word-break:break-word">${esc(s.misc)}</td>
-  </tr>`).join('');
+  const rows = _sortData(ships,tid).flatMap(s => {
+    const aboard = getStructureForces(p, s.name); // formations/assets/misc deployed to this ship
+    const aboardTag = aboard.length ? `<span class="tag tag-blue" style="font-size:10px;margin-left:6px">${aboard.length} unit${aboard.length!==1?'s':''} aboard</span>` : '';
+    const mainRow = `<tr>
+      <td class="gold" style="word-break:break-word">${esc(s.name)}${_imgBtn(s.imageUrl,s.name)}${aboardTag}</td>
+      <td>${s.class?`<span class="tag tag-blue">${esc(s.class)}</span>`:'<span class="dim">—</span>'}</td>
+      <td>${s.role?`<span class="tag tag-grey">${esc(s.role)}</span>`:'<span class="dim">—</span>'}</td>
+      <td class="td-num">${s.quantity}</td>
+      <td class="dim" style="word-break:break-word">${esc(s.description)}</td>
+      <td>
+        <div class="deploy-ctrl">
+          <span class="badge-deployed" title="Deployed">${totalDeployed(s)}</span>
+          <span class="sep">/</span>
+          <span class="badge-undeployed" title="Undeployed">${s.undeployed}</span>
+          <button class="btn btn-ghost btn-sm" onclick="showDeployModal('ships','${s.id}')">Reposition</button>
+        </div>
+        ${pendingDepRequest('ships',s.id)?`<div style="margin-top:4px"><span class="tag tag-gold" style="font-size:10px">⏳ Redeployment pending</span></div>`:''}
+        ${deploymentSummary(s)}
+      </td>
+      <td class="dim" style="word-break:break-word;font-size:12px">${esc(s.specifications||'')}</td>
+      <td class="dim" style="word-break:break-word">${esc(s.misc)}</td>
+    </tr>`;
+    if(!aboard.length) return [mainRow];
+    const typeColor = { Formation:'tag-red', Asset:'tag-grey', Misc:'tag-blue' };
+    const aboardRows = aboard.map(e=>`<tr style="background:var(--bg2)">
+      <td style="padding-left:28px;font-size:12px;color:var(--text2)">↳ ${esc(e.name)}</td>
+      <td><span class="tag ${typeColor[e.type]||'tag-grey'}" style="font-size:10px">${e.type}</span></td>
+      <td></td>
+      <td class="td-num" style="font-size:12px">${e.qty}</td>
+      <td class="dim" style="font-size:11px">${e.strength?(Number(e.strength)*Number(e.qty)).toLocaleString()+' men':'—'}</td>
+      <td class="dim" style="font-size:11px">${e.category?esc(e.category):'—'}</td>
+      <td class="dim" style="font-size:11px">${e.note?`<em>${esc(e.note)}</em>`:'—'}</td>
+      <td></td>
+    </tr>`).join('');
+    return [mainRow, aboardRows];
+  }).join('');
   return `<div class="card">
     <div class="card-title">Ships <span class="tag tag-grey">${ships.length}</span></div>
     <div class="tbl-wrap"><table style="width:100%;table-layout:fixed">
@@ -2296,32 +2453,36 @@ function renderApprentices() {
 
   const cards = apps.map(a=>{
     const equipItems = (a.equipment||'').split('\n').map(s=>s.trim()).filter(Boolean);
+    const forces = getPersonForces(p, a.name);
     return `
-    <div style="display:flex;gap:16px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:12px">
-      <div style="width:110px;flex-shrink:0">
-        ${a.imageUrl
-          ? `<img src="${a.imageUrl}" style="width:110px;height:150px;object-fit:cover;object-position:top;border-radius:4px;border:1px solid var(--border);display:block">`
-          : `<div style="width:110px;height:150px;background:var(--bg2);border:1px solid var(--border);border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--text2);font-size:11px;text-align:center">No Image</div>`}
-      </div>
-      <div style="flex:1;min-width:0">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
-          <span style="color:var(--gold);font-size:15px;font-weight:700">${esc(a.name)}</span>
-          <span class="tag tag-red">${esc(a.rank||'')}</span>
-          ${a.location?`<span class="dim" style="font-size:12px">${esc(a.location)}</span>`:''}
+    <div style="display:flex;flex-direction:column;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:12px">
+      <div style="display:flex;gap:16px">
+        <div style="width:110px;flex-shrink:0">
+          ${a.imageUrl
+            ? `<img src="${a.imageUrl}" style="width:110px;height:150px;object-fit:cover;object-position:top;border-radius:4px;border:1px solid var(--border);display:block">`
+            : `<div style="width:110px;height:150px;background:var(--bg2);border:1px solid var(--border);border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--text2);font-size:11px;text-align:center">No Image</div>`}
         </div>
-        <div style="font-size:12px;margin-bottom:8px;display:flex;gap:16px;flex-wrap:wrap">
-          ${a.form?`<span><span style="color:var(--text2);text-transform:uppercase;font-size:10px;letter-spacing:1px">Form </span>${esc(a.form)}</span>`:''}
-          ${a.specialization?`<span><span style="color:var(--text2);text-transform:uppercase;font-size:10px;letter-spacing:1px">Spec </span>${esc(a.specialization)}</span>`:''}
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+            <span style="color:var(--gold);font-size:15px;font-weight:700">${esc(a.name)}</span>
+            <span class="tag tag-red">${esc(a.rank||'')}</span>
+            ${a.location?`<span class="dim" style="font-size:12px">${esc(a.location)}</span>`:''}
+          </div>
+          <div style="font-size:12px;margin-bottom:8px;display:flex;gap:16px;flex-wrap:wrap">
+            ${a.form?`<span><span style="color:var(--text2);text-transform:uppercase;font-size:10px;letter-spacing:1px">Form </span>${esc(a.form)}</span>`:''}
+            ${a.specialization?`<span><span style="color:var(--text2);text-transform:uppercase;font-size:10px;letter-spacing:1px">Spec </span>${esc(a.specialization)}</span>`:''}
+          </div>
+          ${a.fightingStyle?`<div style="margin-bottom:8px"><div style="color:var(--text2);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">Fighting Style</div><div style="font-size:13px">${esc(a.fightingStyle)}</div></div>`:''}
+          ${a.description?`<div><div style="color:var(--text2);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">Description</div><div class="dim" style="font-size:13px">${esc(a.description)}</div></div>`:''}
         </div>
-        ${a.fightingStyle?`<div style="margin-bottom:8px"><div style="color:var(--text2);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">Fighting Style</div><div style="font-size:13px">${esc(a.fightingStyle)}</div></div>`:''}
-        ${a.description?`<div><div style="color:var(--text2);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">Description</div><div class="dim" style="font-size:13px">${esc(a.description)}</div></div>`:''}
+        <div style="width:200px;flex-shrink:0;border-left:1px solid var(--border);padding-left:14px">
+          <div style="color:var(--text2);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Equipment</div>
+          ${equipItems.length
+            ? equipItems.map(eq=>`<div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:4px;font-size:12px"><span style="color:var(--gold);margin-top:1px">—</span><span>${esc(eq)}</span></div>`).join('')
+            : `<div class="dim" style="font-size:12px;font-style:italic">None</div>`}
+        </div>
       </div>
-      <div style="width:200px;flex-shrink:0;border-left:1px solid var(--border);padding-left:14px">
-        <div style="color:var(--text2);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Equipment</div>
-        ${equipItems.length
-          ? equipItems.map(eq=>`<div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:4px;font-size:12px"><span style="color:var(--gold);margin-top:1px">—</span><span>${esc(eq)}</span></div>`).join('')
-          : `<div class="dim" style="font-size:12px;font-style:italic">None</div>`}
-      </div>
+      ${renderPersonForces(forces)}
     </div>`;
   }).join('');
 
@@ -2332,6 +2493,58 @@ function renderApprentices() {
   </div>
   <div class="card">
     <div class="card-title">Apprentices</div>
+    <div style="display:flex;flex-direction:column;gap:10px">${cards}</div>
+  </div>`;
+}
+
+function renderNotables() {
+  const p = STATE.players[currentPlayer];
+  if(!p) return '<div class="card">No player data.</div>';
+  const notables = p.notables||[];
+  if(!notables.length) return `<div class="card"><div class="card-title">Notables</div><div class="dim" style="padding:12px">No notables yet.</div></div>`;
+
+  const roles = [...new Set(notables.map(n=>n.role||'Unknown'))];
+  const roleCounts = roles.map(r=>({ role:r, count:notables.filter(n=>(n.role||'Unknown')===r).length }));
+
+  const cards = notables.map(n=>{
+    const equipItems = (n.equipment||'').split('\n').map(s=>s.trim()).filter(Boolean);
+    const forces = getPersonForces(p, n.name);
+    return `
+    <div style="display:flex;flex-direction:column;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:12px">
+      <div style="display:flex;gap:16px">
+        <div style="width:110px;flex-shrink:0">
+          ${n.imageUrl
+            ? `<img src="${n.imageUrl}" style="width:110px;height:150px;object-fit:cover;object-position:top;border-radius:4px;border:1px solid var(--border);display:block">`
+            : `<div style="width:110px;height:150px;background:var(--bg2);border:1px solid var(--border);border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--text2);font-size:11px;text-align:center">No Image</div>`}
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+            <span style="color:var(--gold);font-size:15px;font-weight:700">${esc(n.name)}</span>
+            ${n.role?`<span class="tag tag-blue">${esc(n.role)}</span>`:''}
+            ${n.species?`<span class="tag tag-grey">${esc(n.species)}</span>`:''}
+            ${n.location?`<span class="dim" style="font-size:12px">📍 ${esc(n.location)}</span>`:''}
+          </div>
+          ${n.fightingStyle?`<div style="margin-bottom:8px"><div style="color:var(--text2);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">Fighting Style</div><div style="font-size:13px">${esc(n.fightingStyle)}</div></div>`:''}
+          ${n.description?`<div><div style="color:var(--text2);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">Description</div><div class="dim" style="font-size:13px">${esc(n.description)}</div></div>`:''}
+        </div>
+        <div style="width:200px;flex-shrink:0;border-left:1px solid var(--border);padding-left:14px">
+          <div style="color:var(--text2);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Equipment</div>
+          ${equipItems.length
+            ? equipItems.map(eq=>`<div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:4px;font-size:12px"><span style="color:var(--gold);margin-top:1px">—</span><span>${esc(eq)}</span></div>`).join('')
+            : `<div class="dim" style="font-size:12px;font-style:italic">None</div>`}
+        </div>
+      </div>
+      ${renderPersonForces(forces)}
+    </div>`;
+  }).join('');
+
+  return `
+  <div class="grid${Math.min(roleCounts.length+1,4)}" style="margin-bottom:16px">
+    <div class="stat-box"><div class="label">Total Notables</div><div class="value">${notables.length}</div></div>
+    ${roleCounts.map(rc=>`<div class="stat-box"><div class="label">${esc(rc.role)}</div><div class="value">${rc.count}</div></div>`).join('')}
+  </div>
+  <div class="card">
+    <div class="card-title">Notables</div>
     <div style="display:flex;flex-direction:column;gap:10px">${cards}</div>
   </div>`;
 }
@@ -2624,8 +2837,8 @@ function renderAdminPlayers() {
   let content = '<div class="dim" style="padding:20px">Select a player to edit.</div>';
   if(adminPlayerSelected && STATE.players[adminPlayerSelected]) {
     const p = STATE.players[adminPlayerSelected];
-    const tabList = ['character','finances','formations','assets','ships','structures','misc','income','populations','trophies','apprentices','artifacts'];
-    const tabLabels = { character:'Character', finances:'Finances', formations:'Formations', assets:'Assets', ships:'Ships', structures:'Structures', misc:'Misc', income:'Income', populations:'Populations', trophies:'Trophies', apprentices:'Apprentices', artifacts:'Artifacts' };
+    const tabList = ['character','finances','formations','assets','ships','structures','misc','income','populations','trophies','apprentices','notables','artifacts'];
+    const tabLabels = { character:'Character', finances:'Finances', formations:'Formations', assets:'Assets', ships:'Ships', structures:'Structures', misc:'Misc', income:'Income', populations:'Populations', trophies:'Trophies', apprentices:'Apprentices', notables:'Notables', artifacts:'Artifacts' };
     content = `
       <div class="tab-bar" style="flex-wrap:wrap">
         ${tabList.map(t=>`<div class="tab ${adminPlayerTab===t?'active':''}" onclick="adminPlayerTab='${t}';render()" style="font-size:12px;padding:5px 10px">${tabLabels[t]}</div>`).join('')}
@@ -2641,6 +2854,7 @@ function renderAdminPlayers() {
       ${adminPlayerTab==='populations'?renderAdminPopEdit(p):''}
       ${adminPlayerTab==='trophies'?renderAdminListEdit(p,'trophies','Trophies',['name','number','aura','description','conflict','claimedFrom']):''}
       ${adminPlayerTab==='apprentices'?renderAdminApprenticeEdit(p):''}
+      ${adminPlayerTab==='notables'?renderAdminNotablesEdit(p):''}
       ${adminPlayerTab==='artifacts'?renderAdminListEdit(p,'artifacts','Artifact Collection',['name','number','quality','description','effects']):''}
     `;
   }
@@ -2757,6 +2971,37 @@ function clearApprenticeImage(pid, idx) {
   STATE.players[pid].apprentices[idx].imageUrl = '';
   saveState(); notify('Image removed.'); render();
 }
+function handleNotableImagePaste(e, pid, idx) {
+  e.preventDefault();
+  const items = e.clipboardData && e.clipboardData.items;
+  if(!items) return;
+  for(let i=0;i<items.length;i++) {
+    if(items[i].type.startsWith('image/')) {
+      const blob = items[i].getAsFile();
+      const reader = new FileReader();
+      reader.onload = function(ev) {
+        STATE.players[pid].notables[idx].imageUrl = ev.target.result;
+        saveState(); notify('Notable image saved.'); render();
+      };
+      reader.readAsDataURL(blob);
+      return;
+    }
+  }
+  notify('No image found in clipboard.');
+}
+function handleNotableImageFile(input, pid, idx) {
+  const file = input.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    STATE.players[pid].notables[idx].imageUrl = ev.target.result;
+    saveState(); notify('Notable image saved.'); render();
+  };
+  reader.readAsDataURL(file);
+}
+function clearNotableImage(pid, idx) {
+  STATE.players[pid].notables[idx].imageUrl = '';
+  saveState(); notify('Image removed.'); render();
+}
 
 function renderAdminApprenticeEdit(p) {
   const list = p.apprentices||[];
@@ -2791,6 +3036,47 @@ function renderAdminApprenticeEdit(p) {
       ${list.length===0?`<div class="dim" style="padding:12px;text-align:center;font-style:italic">No apprentices — use + Add Row above.</div>`:''}
     </div>
   </div>`;
+}
+
+function renderAdminNotablesEdit(p) {
+  const list = p.notables||[];
+  const fields = ['name','role','species','location','fightingStyle','description','equipment'];
+  const labels = { name:'Name', role:'Role / Title', species:'Species', location:'Location', fightingStyle:'Fighting Style', description:'Description', equipment:'Equipment (one per line)' };
+  return `<div class="card">
+    <div class="card-title">Notables (${list.length})
+      <button class="btn btn-green btn-sm" onclick="adminAddNotable('${p.id}')">+ Add Notable</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      ${list.map((row,idx)=>`
+        <div style="display:flex;gap:12px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:10px;align-items:flex-start">
+          <div style="width:90px;flex-shrink:0;display:flex;flex-direction:column;gap:4px">
+            <div class="img-paste-zone" style="min-height:0;height:120px;padding:8px;width:90px;box-sizing:border-box" tabindex="0"
+                 onclick="this.focus()" onpaste="handleNotableImagePaste(event,'${p.id}',${idx})">
+              ${row.imageUrl
+                ? `<img src="${row.imageUrl}" style="max-height:90px;width:100%;border-radius:3px;object-fit:cover;object-position:top;display:block">
+                   <button class="btn btn-red btn-sm" style="margin-top:4px;font-size:10px;width:100%" onclick="event.stopPropagation();clearNotableImage('${p.id}',${idx})">✕ Remove</button>`
+                : `<div class="paste-hint" style="font-size:11px">Click, then<br>Ctrl+V image</div>`}
+            </div>
+            <input type="file" accept="image/*" style="font-size:10px;max-width:90px;color:var(--text2)" onchange="handleNotableImageFile(this,'${p.id}',${idx})">
+          </div>
+          <div style="flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:6px">
+            ${fields.map(f=>`<div${f==='description'||f==='equipment'?' style="grid-column:span 2"':''}>
+              <label style="font-size:10px;margin-bottom:2px">${labels[f]}</label>
+              <textarea class="admin-ta" onfocus="adminTaFocus(this)" onblur="adminTaBlur(this)" onchange="adminUpdateCell('${p.id}','notables',${idx},'${f}',this.value)">${esc(row[f]||'')}</textarea>
+            </div>`).join('')}
+          </div>
+          <div>
+            <button class="btn btn-red btn-sm" onclick="adminDeleteRow('${p.id}','notables',${idx})">✕</button>
+          </div>
+        </div>`).join('')}
+      ${list.length===0?`<div class="dim" style="padding:12px;text-align:center;font-style:italic">No notables — use + Add Notable above.</div>`:''}
+    </div>
+  </div>`;
+}
+function adminAddNotable(pid) {
+  STATE.players[pid].notables = STATE.players[pid].notables||[];
+  STATE.players[pid].notables.push({ id:newId(), name:'', role:'', species:'', location:'', fightingStyle:'', description:'', equipment:'', imageUrl:'' });
+  saveState(); render();
 }
 
 function saveAdminCharacter(pid) {
@@ -2847,7 +3133,23 @@ function renderAdminListEdit(p, listKey, title, fields) {
       <thead><tr>${fields.map(f=>`<th style="min-width:${colWidth[f]||'80px'}">${f}</th>`).join('')}<th>Actions</th></tr></thead>
       <tbody>
         ${list.map((row,idx)=>`<tr>
-          ${fields.map(f=>{const isNum=['quantity','deployed','undeployed','strength','number'].includes(f);const w=colWidth[f]?'calc('+colWidth[f]+' - 20px)':'80px';if(listKey==='structures'&&f==='location')return`<td><div class="loc-selector" style="min-width:${w}">${_alpCellHtml(p.id,idx,row.location||'')}</div></td>`;return isNum?`<td><input type="text" value="${fmtNum(row[f]||0)}" style="min-width:${w}" oninput="numInput(this)" inputmode="numeric" onchange="adminUpdateCell('${p.id}','${listKey}',${idx},'${f}',this.value)"></td>`:`<td><textarea class="admin-ta" style="min-width:${w}" onfocus="adminTaFocus(this)" onblur="adminTaBlur(this)" onchange="adminUpdateCell('${p.id}','${listKey}',${idx},'${f}',this.value)">${esc(row[f]||'')}</textarea></td>`;}).join('')}
+          ${fields.map(f=>{
+            const isNum=['quantity','deployed','undeployed','strength','number'].includes(f);
+            const w=colWidth[f]?'calc('+colWidth[f]+' - 20px)':'80px';
+            if(listKey==='structures'&&f==='location') return`<td><div class="loc-selector" style="min-width:${w}">${_alpCellHtml(p.id,idx,row.location||'')}</div></td>`;
+            if(f==='imageUrl') return`<td style="vertical-align:top">
+              <div style="display:flex;flex-direction:column;gap:4px;width:200px">
+                ${row.imageUrl?`<img src="${row.imageUrl}" style="max-height:70px;max-width:190px;object-fit:contain;border-radius:3px;display:block">
+                  <button class="btn btn-red btn-sm" style="font-size:10px" onclick="adminUpdateCell('${p.id}','${listKey}',${idx},'imageUrl','');saveState();render()">✕ Clear</button>`:''}
+                <div class="img-paste-zone" style="min-height:36px;padding:6px" tabindex="0"
+                     onclick="this.focus()" onpaste="_adminImgPaste(event,'${p.id}','${listKey}',${idx})">
+                  <div class="paste-hint" style="font-size:11px">Ctrl+V image</div>
+                </div>
+                <input type="file" accept="image/*" style="font-size:11px;max-width:200px;color:var(--text2)" onchange="_adminImgFile(this,'${p.id}','${listKey}',${idx})">
+              </div>
+            </td>`;
+            return isNum?`<td><input type="text" value="${fmtNum(row[f]||0)}" style="min-width:${w}" oninput="numInput(this)" inputmode="numeric" onchange="adminUpdateCell('${p.id}','${listKey}',${idx},'${f}',this.value)"></td>`:`<td><textarea class="admin-ta" style="min-width:${w}" onfocus="adminTaFocus(this)" onblur="adminTaBlur(this)" onchange="adminUpdateCell('${p.id}','${listKey}',${idx},'${f}',this.value)">${esc(row[f]||'')}</textarea></td>`;
+          }).join('')}
           <td style="white-space:nowrap;vertical-align:top">
             <div style="display:flex;flex-direction:column;gap:4px;align-items:stretch">
               ${canMove?`<select style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:4px;padding:2px 4px;font-size:11px;font-family:inherit;width:100%" onchange="if(this.value){adminMoveRow('${p.id}','${listKey}',${idx},this.value);this.value=''}"><option value="">↔ Move…</option>${moveOpts}</select>`:''}
@@ -3107,10 +3409,76 @@ function renderAdminShop() {
     </table></div>
   </div>`;
 }
+// ── Shop item image helpers ──────────────────────────────────
+let _siImageData = ''; // base64 or URL for the currently open shop-item modal
+function _siImgPaste(e) {
+  e.preventDefault();
+  const items = e.clipboardData?.items;
+  if(items) {
+    for(let i=0;i<items.length;i++) {
+      if(items[i].type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = ev => { _siImageData = ev.target.result; _siImgPreview(); };
+        reader.readAsDataURL(items[i].getAsFile());
+        return;
+      }
+    }
+  }
+  const text = e.clipboardData?.getData('text/plain');
+  if(text && (text.startsWith('http')||text.startsWith('data:'))) { _siImageData = text; _siImgPreview(); return; }
+  notify('No image found in clipboard.', true);
+}
+function _siImgFile(input) {
+  const file = input.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => { _siImageData = ev.target.result; _siImgPreview(); };
+  reader.readAsDataURL(file);
+}
+function _siImgUrlInput(val) {
+  _siImageData = val;
+  const zone = document.getElementById('si-img-zone');
+  if(zone) zone.innerHTML = val ? `<img src="${val}" style="max-height:120px;max-width:100%;border-radius:4px;object-fit:contain">` : `<div class="paste-hint">🖼 Click here, then Ctrl+V to paste</div>`;
+}
+function _siImgClear() {
+  _siImageData = '';
+  const u = document.getElementById('si-img-url'); if(u) u.value = '';
+  _siImgPreview();
+}
+function _siImgPreview() {
+  const zone = document.getElementById('si-img-zone');
+  const urlInp = document.getElementById('si-img-url');
+  if(zone) zone.innerHTML = _siImageData ? `<img src="${_siImageData}" style="max-height:120px;max-width:100%;border-radius:4px;object-fit:contain">` : `<div class="paste-hint">🖼 Click here, then Ctrl+V to paste</div>`;
+  if(urlInp && !_siImageData.startsWith('data:')) urlInp.value = _siImageData;
+  else if(urlInp && _siImageData.startsWith('data:')) urlInp.value = '';
+}
+// ── Admin roster image helpers ───────────────────────────────
+function _adminImgPaste(e, pid, listKey, idx) {
+  e.preventDefault();
+  const items = e.clipboardData?.items;
+  if(items) {
+    for(let i=0;i<items.length;i++) {
+      if(items[i].type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = ev => { adminUpdateCell(pid,listKey,idx,'imageUrl',ev.target.result); saveState(); render(); };
+        reader.readAsDataURL(items[i].getAsFile());
+        return;
+      }
+    }
+  }
+  notify('No image in clipboard.', true);
+}
+function _adminImgFile(input, pid, listKey, idx) {
+  const file = input.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => { adminUpdateCell(pid,listKey,idx,'imageUrl',ev.target.result); saveState(); render(); };
+  reader.readAsDataURL(file);
+}
+// ─────────────────────────────────────────────────────────────
 function showAddShopItem() { showShopItemModal(null); }
 function showEditShopItem(id) { showShopItemModal(id); }
 function showShopItemModal(id) {
   const item = id ? STATE.shopItems.find(i=>i.id===id) : null;
+  _siImageData = item?.imageUrl || '';
   const modal = document.createElement('div');
   modal.className = 'modal-overlay';
   const u = item?.unit||'';
@@ -3153,7 +3521,22 @@ function showShopItemModal(id) {
     </div>
     <div class="form-row"><label>Description</label><textarea id="si-desc">${esc(item?.description||'')}</textarea></div>
     <div class="form-row"><label>Prerequisite</label><input id="si-prereq" type="text" value="${esc(item?.prerequisite||'')}"></div>
-    <div class="form-row"><label>Image URL (optional)</label><input id="si-image" type="text" placeholder="https://…" value="${esc(item?.imageUrl||'')}"></div>
+    <div class="form-row" style="flex-direction:column;gap:6px">
+      <label>Image</label>
+      <div id="si-img-zone" class="img-paste-zone" style="min-height:60px" tabindex="0"
+           onclick="this.focus()" onpaste="_siImgPaste(event)">
+        ${_siImageData ? `<img src="${_siImageData}" style="max-height:120px;max-width:100%;border-radius:4px;object-fit:contain">` : `<div class="paste-hint">🖼 Click here, then Ctrl+V to paste</div>`}
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <input type="file" id="si-img-file" accept="image/*" style="display:none" onchange="_siImgFile(this)">
+        <button class="btn btn-ghost btn-sm" type="button" onclick="document.getElementById('si-img-file').click()">📁 Upload File</button>
+        <input id="si-img-url" type="text" placeholder="or paste a URL…"
+          value="${(_siImageData && !_siImageData.startsWith('data:')) ? esc(_siImageData) : ''}"
+          oninput="_siImgUrlInput(this.value)"
+          style="flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:5px 8px;font-size:12px;font-family:inherit;min-width:0">
+        ${_siImageData ? `<button class="btn btn-red btn-sm" type="button" onclick="_siImgClear()">✕ Clear</button>` : ''}
+      </div>
+    </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
       <button class="btn btn-gold" onclick="saveShopItem('${id||''}')">Save</button>
@@ -3183,7 +3566,7 @@ function saveShopItem(id) {
     specifications:document.getElementById('si-specs')?.value      || '',
     location:      document.getElementById('si-location')?.value   || '',
     locationNote:  document.getElementById('si-locnote')?.value    || '',
-    imageUrl:      document.getElementById('si-image')?.value      || '',
+    imageUrl:      _siImageData || '',
   };
   if(id) { const item = STATE.shopItems.find(i=>i.id===id); if(item) Object.assign(item, data); }
   else { STATE.shopItems = STATE.shopItems||[]; STATE.shopItems.push({ id:newId(), ...data }); }

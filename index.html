@@ -973,6 +973,40 @@ function notify(msg, err=false) {
   document.getElementById('notif').appendChild(div);
   setTimeout(()=>div.remove(), 3000);
 }
+function showImageLightbox(url, title) {
+  const existing = document.getElementById('img-lightbox');
+  if(existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'img-lightbox';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;padding:20px;box-sizing:border-box';
+  const inner = document.createElement('div');
+  inner.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:12px;cursor:default;max-width:min(90vw,900px);max-height:90vh';
+  inner.addEventListener('click', e => e.stopPropagation());
+  if(title) {
+    const h = document.createElement('div');
+    h.style.cssText = 'color:#c9a84c;font-size:16px;font-weight:700;text-align:center;text-shadow:0 2px 8px rgba(0,0,0,.8)';
+    h.textContent = title;
+    inner.appendChild(h);
+  }
+  const img = document.createElement('img');
+  img.src = url;
+  img.alt = title||'';
+  img.style.cssText = 'max-width:100%;max-height:calc(90vh - 80px);object-fit:contain;border-radius:6px;box-shadow:0 8px 40px rgba(0,0,0,.9)';
+  inner.appendChild(img);
+  const hint = document.createElement('div');
+  hint.style.cssText = 'color:rgba(255,255,255,.4);font-size:12px';
+  hint.textContent = 'Click anywhere outside to close';
+  inner.appendChild(hint);
+  overlay.appendChild(inner);
+  overlay.addEventListener('click', () => overlay.remove());
+  document.body.appendChild(overlay);
+}
+function _imgBtn(url, name) {
+  if(!url) return '';
+  const safeUrl  = (url  ||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  const safeName = (name ||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  return `<span onclick="showImageLightbox('${safeUrl}','${safeName}')" title="View image" style="cursor:pointer;font-size:13px;margin-left:5px;opacity:.55;vertical-align:middle;user-select:none" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='.55'">🖼</span>`;
+}
 function calcNet(player) {
   return (player.income || []).reduce((s, r) => s + (Number(r.totalNet)||0), 0);
 }
@@ -1731,7 +1765,7 @@ function renderDeployed() {
 function renderFormationsTab(p) {
   const tid='formations';
   const rows = _sortData(p.formations||[],tid).map(f => `<tr>
-    <td class="gold" style="word-break:break-word">${esc(f.name)}</td>
+    <td class="gold" style="word-break:break-word">${esc(f.name)}${_imgBtn(f.imageUrl,f.name)}</td>
     <td class="td-num">${f.quantity}</td>
     <td style="text-align:center">${f.strength?`<span class="tag tag-grey" style="font-size:11px">${f.strength} men</span>`:'<span class="dim">—</span>'}</td>
     <td><span class="tag tag-grey">${esc(f.category)}</span></td>
@@ -1765,7 +1799,7 @@ function renderFormationsTab(p) {
 function renderAssetsTab(p) {
   const tid='assets';
   const rows = _sortData(p.assets||[],tid).map(a => `<tr>
-    <td class="gold" style="word-break:break-word">${esc(a.name)}</td>
+    <td class="gold" style="word-break:break-word">${esc(a.name)}${_imgBtn(a.imageUrl,a.name)}</td>
     <td class="td-num">${a.quantity}</td>
     <td><span class="tag tag-grey">${esc(a.category)}</span></td>
     <td class="dim" style="word-break:break-word">${esc(a.description)}</td>
@@ -1799,7 +1833,7 @@ function renderShipsTab(p) {
   const tid='ships';
   const ships = p.ships||[];
   const rows = _sortData(ships,tid).map(s => `<tr>
-    <td class="gold" style="word-break:break-word">${esc(s.name)}</td>
+    <td class="gold" style="word-break:break-word">${esc(s.name)}${_imgBtn(s.imageUrl,s.name)}</td>
     <td>${s.class?`<span class="tag tag-blue">${esc(s.class)}</span>`:'<span class="dim">—</span>'}</td>
     <td>${s.role?`<span class="tag tag-grey">${esc(s.role)}</span>`:'<span class="dim">—</span>'}</td>
     <td class="td-num">${s.quantity}</td>
@@ -1832,7 +1866,7 @@ function renderStructuresTab(p) {
   const rows = _sortData(p.structures||[],tid).map(s => {
     const forces = getStructureForces(p, s.name);
     return `<tr>
-      <td class="gold" style="word-break:break-word">${esc(s.name)}</td>
+      <td class="gold" style="word-break:break-word">${esc(s.name)}${_imgBtn(s.imageUrl,s.name)}</td>
       <td class="td-num">${s.quantity}</td>
       <td><span class="tag tag-grey">${esc(s.category)}</span></td>
       <td class="dim" style="word-break:break-word">${esc(s.description)}</td>
@@ -1858,7 +1892,7 @@ function renderStructuresTab(p) {
 function renderMiscTab(p) {
   const tid='miscItems';
   const rows = _sortData(p.miscItems||[],tid).map(m => `<tr>
-    <td class="gold" style="word-break:break-word">${esc(m.name)}</td>
+    <td class="gold" style="word-break:break-word">${esc(m.name)}${_imgBtn(m.imageUrl,m.name)}</td>
     <td class="td-num">${m.quantity}</td>
     <td><span class="tag tag-grey">${esc(m.category)}</span></td>
     <td class="dim" style="word-break:break-word">${esc(m.description)}</td>
@@ -2347,18 +2381,20 @@ function renderShop() {
       <thead><tr>${_th(tid,'name','Name')}${_th(tid,'category','Category')}${_th(tid,'price','Price','class="td-num"')}<th>Description</th><th>Details</th><th>Prerequisite</th><th></th></tr></thead>
       <tbody>
         ${items.map(item=>{
-          let details = '<span class="dim">—</span>';
-          if(item.unit==='formations' && item.strength) details = `<span class="dim" style="font-size:12px">Str: <strong>${esc(item.strength)}</strong></span>`;
+          const wagePart = (parseFloat(item.wage)||0) > 0 ? `<span class="tag tag-red" style="font-size:10px">Wage: ${fmtC(item.wage)}/unit</span>` : '';
+          let details = wagePart || '<span class="dim">—</span>';
+          if(item.unit==='formations' && item.strength) details = `<div style="display:flex;flex-wrap:wrap;gap:3px;align-items:flex-start"><span class="dim" style="font-size:12px">Str: <strong>${esc(item.strength)}</strong></span>${wagePart}</div>`;
           else if(item.unit==='ships') {
             const parts = [
               item.class ? `<span class="tag tag-blue" style="font-size:10px">${esc(item.class)}</span>` : '',
               item.role  ? `<span class="tag tag-grey" style="font-size:10px">${esc(item.role)}</span>`  : '',
+              wagePart,
               item.specifications ? `<div class="dim" style="font-size:11px;margin-top:3px">${esc(item.specifications)}</div>` : ''
             ].filter(Boolean);
             if(parts.length) details = `<div style="display:flex;flex-wrap:wrap;gap:3px;align-items:flex-start">${parts.join('')}</div>`;
-          } else if(item.unit==='structures' && item.location) details = `<span class="dim" style="font-size:12px">📍 ${esc(item.location)}</span>`;
+          } else if(item.unit==='structures' && item.location) details = `<div style="display:flex;flex-wrap:wrap;gap:3px;align-items:flex-start"><span class="dim" style="font-size:12px">📍 ${esc(item.location)}</span>${wagePart}</div>`;
           return `<tr>
-            <td class="gold" style="word-break:break-word">${esc(item.name)}</td>
+            <td class="gold" style="word-break:break-word">${esc(item.name)}${_imgBtn(item.imageUrl,item.name)}</td>
             <td>${item.category?`<span class="tag tag-grey">${esc(item.category)}</span>`:'<span class="dim">—</span>'}</td>
             <td class="td-num" style="font-weight:700;color:var(--gold2)">${fmtC(item.price)}</td>
             <td class="dim" style="word-break:break-word">${esc(item.description)}</td>
@@ -2789,18 +2825,18 @@ function saveAdminFinances(pid) {
 
 const MOVABLE_LISTS = { formations:'Formations', assets:'Assets', miscItems:'Misc Items', structures:'Structures' };
 const ADMIN_LIST_FIELDS = {
-  formations: ['name','quantity','strength','category','description','misc'],
-  assets:     ['name','quantity','category','description','misc'],
-  ships:      ['name','class','role','quantity','description','specifications','misc'],
-  structures: ['name','quantity','category','description','location','locationNote','misc'],
-  miscItems:  ['name','quantity','category','description','misc'],
+  formations: ['name','quantity','strength','category','description','misc','imageUrl'],
+  assets:     ['name','quantity','category','description','misc','imageUrl'],
+  ships:      ['name','class','role','quantity','description','specifications','misc','imageUrl'],
+  structures: ['name','quantity','category','description','location','locationNote','misc','imageUrl'],
+  miscItems:  ['name','quantity','category','description','misc','imageUrl'],
   trophies:   ['name','number','aura','description','conflict','claimedFrom'],
   apprentices:['name','form','rank','specialization','location','description'],
   artifacts:  ['name','number','quality','description','effects'],
 };
 function renderAdminListEdit(p, listKey, title, fields) {
   const list = p[listKey]||[];
-  const colWidth = { name:'90px', description:'380px', category:'80px', quantity:'55px', number:'55px', strength:'60px', deployed:'60px', undeployed:'70px', location:'110px', locationNote:'130px', misc:'110px', attachedForces:'110px', aura:'60px', quality:'70px', form:'90px', rank:'70px', specialization:'90px', conflict:'110px', claimedFrom:'110px', effects:'200px', class:'130px', role:'90px', specifications:'200px' };
+  const colWidth = { name:'90px', description:'380px', category:'80px', quantity:'55px', number:'55px', strength:'60px', deployed:'60px', undeployed:'70px', location:'110px', locationNote:'130px', misc:'110px', attachedForces:'110px', aura:'60px', quality:'70px', form:'90px', rank:'70px', specialization:'90px', conflict:'110px', claimedFrom:'110px', effects:'200px', class:'130px', role:'90px', specifications:'200px', imageUrl:'220px' };
   const canMove = listKey in MOVABLE_LISTS;
   const moveOpts = canMove ? Object.entries(MOVABLE_LISTS).filter(([k])=>k!==listKey).map(([k,v])=>`<option value="${k}">${v}</option>`).join('') : '';
   return `<div class="card">
@@ -3014,12 +3050,13 @@ function renderAdminShop() {
         <thead><tr>${_th(tid,'name','Name')}${_th(tid,'category','Category')}${_th(tid,'price','Price','class="td-num"')}<th>Description</th><th>Details</th><th>Prerequisite</th><th>Actions</th></tr></thead>
         <tbody>
           ${items.map(item=>{
-            let details = '<span class="dim">—</span>';
-            if(item.unit==='formations'&&item.strength) details=`<span class="dim" style="font-size:12px">Str: <strong>${esc(item.strength)}</strong></span>`;
-            else if(item.unit==='ships'){const parts=[item.class?`<span class="tag tag-blue" style="font-size:10px">${esc(item.class)}</span>`:'',item.role?`<span class="tag tag-grey" style="font-size:10px">${esc(item.role)}</span>`:'',item.specifications?`<div class="dim" style="font-size:11px;margin-top:3px">${esc(item.specifications)}</div>`:''].filter(Boolean);if(parts.length)details=`<div style="display:flex;flex-wrap:wrap;gap:3px;align-items:flex-start">${parts.join('')}</div>`;}
-            else if(item.unit==='structures'&&item.location) details=`<span class="dim" style="font-size:12px">📍 ${esc(item.location)}</span>`;
+            const wagePart = (parseFloat(item.wage)||0) > 0 ? `<span class="tag tag-red" style="font-size:10px">Wage: ${fmtC(item.wage)}/unit</span>` : '';
+            let details = wagePart || '<span class="dim">—</span>';
+            if(item.unit==='formations'&&item.strength) details=`<div style="display:flex;flex-wrap:wrap;gap:3px;align-items:flex-start"><span class="dim" style="font-size:12px">Str: <strong>${esc(item.strength)}</strong></span>${wagePart}</div>`;
+            else if(item.unit==='ships'){const parts=[item.class?`<span class="tag tag-blue" style="font-size:10px">${esc(item.class)}</span>`:'',item.role?`<span class="tag tag-grey" style="font-size:10px">${esc(item.role)}</span>`:'',wagePart,item.specifications?`<div class="dim" style="font-size:11px;margin-top:3px">${esc(item.specifications)}</div>`:''].filter(Boolean);if(parts.length)details=`<div style="display:flex;flex-wrap:wrap;gap:3px;align-items:flex-start">${parts.join('')}</div>`;}
+            else if(item.unit==='structures'&&item.location) details=`<div style="display:flex;flex-wrap:wrap;gap:3px;align-items:flex-start"><span class="dim" style="font-size:12px">📍 ${esc(item.location)}</span>${wagePart}</div>`;
             return `<tr>
-              <td class="gold" style="word-break:break-word">${esc(item.name)}</td>
+              <td class="gold" style="word-break:break-word">${esc(item.name)}${_imgBtn(item.imageUrl,item.name)}</td>
               <td>${item.category?`<span class="tag tag-grey">${esc(item.category)}</span>`:'<span class="dim">—</span>'}</td>
               <td class="td-num" style="font-weight:700;color:var(--gold2)">${fmtC(item.price)}</td>
               <td class="dim" style="word-break:break-word">${esc(item.description)}</td>
@@ -3044,16 +3081,19 @@ function renderAdminShop() {
         ${items.map(item=>{
           const unitLabel = {formations:'Formations',assets:'Assets',ships:'Ships',structures:'Structures',miscItems:'Misc Items'}[item.unit]||'—';
           const unitTag = item.unit?`<span class="tag tag-grey" style="font-size:10px">${unitLabel}</span>`:'<span class="dim">—</span>';
-          let details='';
-          if(item.unit==='formations'&&item.strength) details=`<span class="dim" style="font-size:12px">Str: <strong>${esc(item.strength)}</strong></span>`;
-          else if(item.unit==='ships') details=[item.class&&`<span class="dim" style="font-size:12px">${esc(item.class)}</span>`,item.role&&`<span class="dim" style="font-size:12px">${esc(item.role)}</span>`].filter(Boolean).join(' · ');
-          else if(item.unit==='structures'&&item.location) details=`<span class="dim" style="font-size:12px">📍 ${esc(item.location)}</span>`;
+          const wagePart = (parseFloat(item.wage)||0) > 0 ? `<span class="tag tag-red" style="font-size:10px">Wage: ${fmtC(item.wage)}/unit</span>` : '';
+          let detailsParts=[];
+          if(item.unit==='formations'&&item.strength) detailsParts.push(`<span class="dim" style="font-size:12px">Str: <strong>${esc(item.strength)}</strong></span>`);
+          else if(item.unit==='ships') { if(item.class) detailsParts.push(`<span class="dim" style="font-size:12px">${esc(item.class)}</span>`); if(item.role) detailsParts.push(`<span class="dim" style="font-size:12px">${esc(item.role)}</span>`); }
+          else if(item.unit==='structures'&&item.location) detailsParts.push(`<span class="dim" style="font-size:12px">📍 ${esc(item.location)}</span>`);
+          if(wagePart) detailsParts.push(wagePart);
+          const details = detailsParts.length ? `<div style="display:flex;flex-wrap:wrap;gap:3px;align-items:flex-start">${detailsParts.join('')}</div>` : '<span class="dim">—</span>';
           return `<tr>
-            <td class="gold">${esc(item.name)}</td>
+            <td class="gold">${esc(item.name)}${_imgBtn(item.imageUrl,item.name)}</td>
             <td>${item.category?`<span class="tag tag-grey">${esc(item.category)}</span>`:'<span class="dim">—</span>'}</td>
             <td>${unitTag}</td>
             <td class="td-num">${fmtC(item.price)}</td>
-            <td>${details||'<span class="dim">—</span>'}</td>
+            <td>${details}</td>
             <td class="dim" style="max-width:180px">${esc(item.description)}</td>
             <td class="dim">${esc(item.prerequisite)}</td>
             <td style="white-space:nowrap">
@@ -3085,6 +3125,7 @@ function showShopItemModal(id) {
       </div>
     </div>
     <div class="form-row"><label>Price (credits)</label><input id="si-price" type="number" value="${item?.price||0}"></div>
+    <div class="form-row"><label>Wage / Upkeep per unit (optional)</label><input id="si-wage" type="number" min="0" placeholder="0" value="${item?.wage||''}"></div>
     <div class="form-row"><label>Adds to player's…</label>
       <select id="si-unit" onchange="_siUnitChange(this.value)">
         <option value="">— None (no unit added on approval) —</option>
@@ -3112,6 +3153,7 @@ function showShopItemModal(id) {
     </div>
     <div class="form-row"><label>Description</label><textarea id="si-desc">${esc(item?.description||'')}</textarea></div>
     <div class="form-row"><label>Prerequisite</label><input id="si-prereq" type="text" value="${esc(item?.prerequisite||'')}"></div>
+    <div class="form-row"><label>Image URL (optional)</label><input id="si-image" type="text" placeholder="https://…" value="${esc(item?.imageUrl||'')}"></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
       <button class="btn btn-gold" onclick="saveShopItem('${id||''}')">Save</button>
@@ -3131,6 +3173,7 @@ function saveShopItem(id) {
     name: document.getElementById('si-name').value,
     category: document.getElementById('si-cat').value,
     price: parseFloat(document.getElementById('si-price').value)||0,
+    wage:  parseFloat(document.getElementById('si-wage')?.value)||0,
     unit,
     description: document.getElementById('si-desc').value,
     prerequisite: document.getElementById('si-prereq').value,
@@ -3140,6 +3183,7 @@ function saveShopItem(id) {
     specifications:document.getElementById('si-specs')?.value      || '',
     location:      document.getElementById('si-location')?.value   || '',
     locationNote:  document.getElementById('si-locnote')?.value    || '',
+    imageUrl:      document.getElementById('si-image')?.value      || '',
   };
   if(id) { const item = STATE.shopItems.find(i=>i.id===id); if(item) Object.assign(item, data); }
   else { STATE.shopItems = STATE.shopItems||[]; STATE.shopItems.push({ id:newId(), ...data }); }
@@ -3272,7 +3316,7 @@ function approveRequest(id) {
   if(shopItem && validLists.includes(shopItem.unit)) {
     const listKey = shopItem.unit;
     p[listKey] = p[listKey]||[];
-    const newItem = { id:newId(), name:shopItem.name, quantity:req.quantity, category:shopItem.category||'', description:shopItem.description||'', misc:'' };
+    const newItem = { id:newId(), name:shopItem.name, quantity:req.quantity, category:shopItem.category||'', description:shopItem.description||'', misc:'', imageUrl:shopItem.imageUrl||'' };
     if(listKey === 'formations')  { newItem.strength=shopItem.strength||''; newItem.deployments=[]; newItem.undeployed=req.quantity; }
     if(listKey === 'assets')      { newItem.deployments=[]; newItem.undeployed=req.quantity; }
     if(listKey === 'ships')       { newItem.class=shopItem.class||''; newItem.role=shopItem.role||''; newItem.specifications=shopItem.specifications||''; newItem.deployments=[]; newItem.undeployed=req.quantity; }
@@ -3282,6 +3326,14 @@ function approveRequest(id) {
     notify(`Approved — ${shopItem.name} ×${req.quantity} added to ${p.displayName}'s ${listKey}.`);
   } else {
     notify(`Approved. ${fmtC(req.totalCost)} deducted from ${p.displayName}.`);
+  }
+
+  // Auto-add upkeep income row if the shop item has a wage
+  const wageVal = parseFloat(shopItem?.wage)||0;
+  if(wageVal > 0) {
+    p.income = p.income||[];
+    p.income.push({ id:newId(), name:`${shopItem.name} (Wage)`, quantity:req.quantity, income:0, upkeep:wageVal, net:-wageVal, totalNet:-(wageVal*req.quantity) });
+    notify(`Added upkeep: ${fmtC(wageVal)}/unit × ${req.quantity} = ${fmtC(wageVal*req.quantity)}/period for ${p.displayName}.`);
   }
 
   saveState(); render();

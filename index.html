@@ -218,6 +218,27 @@ let _saveTimer = null;
 
 function newId() { return '_' + Math.random().toString(36).slice(2,9); }
 
+// Resize any image blob/file to maxPx on its longest side, returns a JPEG data URL via callback.
+// This keeps stored images small enough not to blow localStorage quota.
+function _resizeToDataUrl(blob, maxPx, quality, cb) {
+  const img = new Image();
+  const url = URL.createObjectURL(blob);
+  img.onload = () => {
+    URL.revokeObjectURL(url);
+    let w = img.width, h = img.height;
+    if(w > maxPx || h > maxPx) {
+      if(w >= h) { h = Math.round(h * maxPx / w); w = maxPx; }
+      else        { w = Math.round(w * maxPx / h); h = maxPx; }
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+    cb(canvas.toDataURL('image/jpeg', quality));
+  };
+  img.onerror = () => { URL.revokeObjectURL(url); cb(null); };
+  img.src = url;
+}
+
 function loadState() {
   try {
     const s = localStorage.getItem('rta_state');
@@ -230,7 +251,13 @@ function loadState() {
 }
 function saveState() {
   STATE._version = DATA_VERSION;
-  localStorage.setItem('rta_state', JSON.stringify(STATE));
+  STATE._savedAt = Date.now(); // timestamp so initApp knows which copy is newer
+  try {
+    localStorage.setItem('rta_state', JSON.stringify(STATE));
+  } catch(e) {
+    console.warn('localStorage quota exceeded:', e);
+    notify('⚠ Local storage full — image may be too large. Try a smaller image.', true);
+  }
   clearTimeout(_saveTimer);
   _saveTimer = setTimeout(async () => {
     try {
@@ -1144,8 +1171,16 @@ async function initApp() {
     const { data: row } = await sb.from('game_state').select('data').eq('id', 'main').single();
     if (row?.data) {
       const remote = (row.data._version || 0) >= DATA_VERSION ? row.data : migrateState(row.data);
-      STATE = remote;
-      localStorage.setItem('rta_state', JSON.stringify(STATE));
+      // Only replace local state if Supabase has a genuinely newer save.
+      // This prevents a pending debounced write from being overwritten by a
+      // stale Supabase read (the race condition that caused edits to vanish).
+      const localTs  = STATE._savedAt  || 0;
+      const remoteTs = remote._savedAt || 0;
+      if (remoteTs >= localTs) {
+        STATE = remote;
+        localStorage.setItem('rta_state', JSON.stringify(STATE));
+      }
+      // else: local is newer — keep it; the background timer will push it to Supabase shortly
     }
   } catch(e) { console.error('Supabase load failed:', e); }
   currentView = 'login';
@@ -1436,6 +1471,17 @@ function renderCharacter() {
         </tbody></table>
         <div style="${secLabel}">Equipment</div>
         <div>${equip.length?equip.map(e=>`<span class="tag tag-grey">${esc(e)}</span>`).join(' '):'<span class="dim">None listed</span>'}</div>
+        ${(c.skills||[]).length?`
+        <div style="${secLabel}">Skills</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          ${(c.skills||[]).map(s=>`<div style="display:flex;gap:8px;align-items:flex-start">
+            <span style="color:var(--gold);margin-top:1px">◆</span>
+            <div>
+              <div style="font-weight:600;font-size:13px">${esc(s.name||'')}</div>
+              ${s.description?`<div class="dim" style="font-size:12px;margin-top:2px">${esc(s.description)}</div>`:''}
+            </div>
+          </div>`).join('')}
+        </div>`:''}
         ${c.notes?`<div style="${secLabel}">Notes</div><div class="text-block">${esc(c.notes)}</div>`:''}
       </div>
       ${c.charImage?`<div style="width:260px;flex-shrink:0"><img src="${c.charImage}" style="width:100%;height:100%;min-height:220px;object-fit:cover;object-position:top;border-radius:6px;border:1px solid var(--border);display:block"></div>`:''}
@@ -3072,6 +3118,25 @@ function renderAdminCharacterEdit(p) {
       <label>Notes</label>
       <textarea id="ce-notes">${esc(c.notes||'')}</textarea>
     </div>
+    <div style="border-top:1px solid var(--border);margin-top:12px;padding-top:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <label style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text2)">Skills</label>
+        <button class="btn btn-green btn-sm" type="button" onclick="adminAddCharSkill('${p.id}')">+ Add Skill</button>
+      </div>
+      <div id="ce-skills-list" style="display:flex;flex-direction:column;gap:8px">
+        ${(c.skills||[]).map((s,idx)=>`
+        <div style="display:flex;gap:8px;align-items:flex-start;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:8px">
+          <div style="flex:1;display:grid;grid-template-columns:1fr 2fr;gap:6px">
+            <div><label style="font-size:10px;color:var(--text2)">Skill Name</label>
+              <input type="text" id="ce-skill-name-${idx}" value="${esc(s.name||'')}" style="width:100%"></div>
+            <div><label style="font-size:10px;color:var(--text2)">Description</label>
+              <textarea id="ce-skill-desc-${idx}" rows="2" style="width:100%">${esc(s.description||'')}</textarea></div>
+          </div>
+          <button class="btn btn-red btn-sm" style="flex-shrink:0;margin-top:16px" onclick="adminDeleteCharSkill('${p.id}',${idx})">✕</button>
+        </div>`).join('')}
+        ${!(c.skills||[]).length?`<div class="dim" style="font-size:12px;font-style:italic;padding:4px">No skills yet.</div>`:''}
+      </div>
+    </div>
     <div class="form-row">
       <label>Character Image</label>
       <div id="img-paste-zone-${p.id}" class="img-paste-zone" tabindex="0"
@@ -3092,18 +3157,14 @@ function renderAdminCharacterEdit(p) {
 function handleCharImagePaste(e, pid) {
   e.preventDefault();
   const items = e.clipboardData && e.clipboardData.items;
-  if (!items) return;
-  for (let i = 0; i < items.length; i++) {
-    if (items[i].type.startsWith('image/')) {
-      const blob = items[i].getAsFile();
-      const reader = new FileReader();
-      reader.onload = function(ev) {
-        STATE.players[pid].character.charImage = ev.target.result;
-        saveState();
-        notify('Character image saved.');
-        render();
-      };
-      reader.readAsDataURL(blob);
+  if(!items) return;
+  for(let i=0;i<items.length;i++) {
+    if(items[i].type.startsWith('image/')) {
+      _resizeToDataUrl(items[i].getAsFile(), 900, 0.88, dataUrl => {
+        if(!dataUrl) { notify('Image failed to process.', true); return; }
+        STATE.players[pid].character.charImage = dataUrl;
+        saveState(); notify('Character image saved.'); render();
+      });
       return;
     }
   }
@@ -3112,9 +3173,7 @@ function handleCharImagePaste(e, pid) {
 
 function clearCharImage(pid) {
   STATE.players[pid].character.charImage = '';
-  saveState();
-  notify('Image removed.');
-  render();
+  saveState(); notify('Image removed.'); render();
 }
 
 function handleApprenticeImagePaste(e, pid, idx) {
@@ -3123,13 +3182,11 @@ function handleApprenticeImagePaste(e, pid, idx) {
   if(!items) return;
   for(let i=0;i<items.length;i++) {
     if(items[i].type.startsWith('image/')) {
-      const blob = items[i].getAsFile();
-      const reader = new FileReader();
-      reader.onload = function(ev) {
-        STATE.players[pid].apprentices[idx].imageUrl = ev.target.result;
+      _resizeToDataUrl(items[i].getAsFile(), 800, 0.85, dataUrl => {
+        if(!dataUrl) { notify('Image failed to process.', true); return; }
+        STATE.players[pid].apprentices[idx].imageUrl = dataUrl;
         saveState(); notify('Apprentice image saved.'); render();
-      };
-      reader.readAsDataURL(blob);
+      });
       return;
     }
   }
@@ -3146,13 +3203,11 @@ function handleNotableImagePaste(e, pid, idx) {
   if(!items) return;
   for(let i=0;i<items.length;i++) {
     if(items[i].type.startsWith('image/')) {
-      const blob = items[i].getAsFile();
-      const reader = new FileReader();
-      reader.onload = function(ev) {
-        STATE.players[pid].notables[idx].imageUrl = ev.target.result;
+      _resizeToDataUrl(items[i].getAsFile(), 800, 0.85, dataUrl => {
+        if(!dataUrl) { notify('Image failed to process.', true); return; }
+        STATE.players[pid].notables[idx].imageUrl = dataUrl;
         saveState(); notify('Notable image saved.'); render();
-      };
-      reader.readAsDataURL(blob);
+      });
       return;
     }
   }
@@ -3160,12 +3215,11 @@ function handleNotableImagePaste(e, pid, idx) {
 }
 function handleNotableImageFile(input, pid, idx) {
   const file = input.files[0]; if(!file) return;
-  const reader = new FileReader();
-  reader.onload = function(ev) {
-    STATE.players[pid].notables[idx].imageUrl = ev.target.result;
+  _resizeToDataUrl(file, 800, 0.85, dataUrl => {
+    if(!dataUrl) { notify('Image failed to load.', true); return; }
+    STATE.players[pid].notables[idx].imageUrl = dataUrl;
     saveState(); notify('Notable image saved.'); render();
-  };
-  reader.readAsDataURL(file);
+  });
 }
 function clearNotableImage(pid, idx) {
   STATE.players[pid].notables[idx].imageUrl = '';
@@ -3248,6 +3302,33 @@ function adminAddNotable(pid) {
   saveState(); render();
 }
 
+function adminAddCharSkill(pid) {
+  const p = STATE.players[pid];
+  if(!p) return;
+  // Flush any in-progress text edits before re-rendering
+  _flushCharSkills(pid);
+  p.character.skills = p.character.skills||[];
+  p.character.skills.push({ name:'', description:'' });
+  saveState(); render();
+}
+function adminDeleteCharSkill(pid, idx) {
+  const p = STATE.players[pid];
+  if(!p) return;
+  _flushCharSkills(pid);
+  (p.character.skills||[]).splice(idx, 1);
+  saveState(); render();
+}
+function _flushCharSkills(pid) {
+  // Read any skill inputs currently in the DOM before a re-render wipes them
+  const p = STATE.players[pid];
+  if(!p) return;
+  (p.character.skills||[]).forEach((_,idx) => {
+    const n = document.getElementById('ce-skill-name-'+idx);
+    const d = document.getElementById('ce-skill-desc-'+idx);
+    if(n) p.character.skills[idx].name = n.value;
+    if(d) p.character.skills[idx].description = d.value;
+  });
+}
 function saveAdminCharacter(pid) {
   const p = STATE.players[pid];
   if(!p) return;
@@ -3255,6 +3336,7 @@ function saveAdminCharacter(pid) {
   fields.forEach(f => { const el = document.getElementById('ce-'+f); if(el) p.character[f] = el.value; });
   const equip = document.getElementById('ce-equipment');
   if(equip) p.character.equipment = equip.value.split('\n').map(s=>s.trim()).filter(Boolean);
+  _flushCharSkills(pid);
   saveState(); notify('Character saved.'); render();
 }
 
@@ -3591,9 +3673,10 @@ function _siImgPaste(e) {
   if(items) {
     for(let i=0;i<items.length;i++) {
       if(items[i].type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onload = ev => { _siImageData = ev.target.result; _siImgPreview(); };
-        reader.readAsDataURL(items[i].getAsFile());
+        _resizeToDataUrl(items[i].getAsFile(), 800, 0.85, dataUrl => {
+          if(!dataUrl) { notify('Image failed to process.', true); return; }
+          _siImageData = dataUrl; _siImgPreview();
+        });
         return;
       }
     }
@@ -3604,9 +3687,10 @@ function _siImgPaste(e) {
 }
 function _siImgFile(input) {
   const file = input.files[0]; if(!file) return;
-  const reader = new FileReader();
-  reader.onload = ev => { _siImageData = ev.target.result; _siImgPreview(); };
-  reader.readAsDataURL(file);
+  _resizeToDataUrl(file, 800, 0.85, dataUrl => {
+    if(!dataUrl) { notify('Image failed to load.', true); return; }
+    _siImageData = dataUrl; _siImgPreview();
+  });
 }
 function _siImgUrlInput(val) {
   _siImageData = val;
@@ -3632,9 +3716,10 @@ function _adminImgPaste(e, pid, listKey, idx) {
   if(items) {
     for(let i=0;i<items.length;i++) {
       if(items[i].type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onload = ev => { adminUpdateCell(pid,listKey,idx,'imageUrl',ev.target.result); saveState(); render(); };
-        reader.readAsDataURL(items[i].getAsFile());
+        _resizeToDataUrl(items[i].getAsFile(), 800, 0.85, dataUrl => {
+          if(!dataUrl) { notify('Image failed to process.', true); return; }
+          adminUpdateCell(pid,listKey,idx,'imageUrl',dataUrl); saveState(); render();
+        });
         return;
       }
     }
@@ -3643,9 +3728,10 @@ function _adminImgPaste(e, pid, listKey, idx) {
 }
 function _adminImgFile(input, pid, listKey, idx) {
   const file = input.files[0]; if(!file) return;
-  const reader = new FileReader();
-  reader.onload = ev => { adminUpdateCell(pid,listKey,idx,'imageUrl',ev.target.result); saveState(); render(); };
-  reader.readAsDataURL(file);
+  _resizeToDataUrl(file, 800, 0.85, dataUrl => {
+    if(!dataUrl) { notify('Image failed to load.', true); return; }
+    adminUpdateCell(pid,listKey,idx,'imageUrl',dataUrl); saveState(); render();
+  });
 }
 // ─────────────────────────────────────────────────────────────
 function showAddShopItem() { showShopItemModal(null); }

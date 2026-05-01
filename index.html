@@ -1088,7 +1088,7 @@ function renderPersonForces(forces) {
       <td class="gold" style="font-size:12px">${f.type==='Ship'?'🚀 ':''} ${esc(f.name)}</td>
       <td><span class="tag ${typeColor[f.type]||'tag-grey'}" style="font-size:10px">${f.type}</span></td>
       <td class="td-num" style="font-size:12px">${f.qty}</td>
-      <td class="dim" style="font-size:11px">${f.strength?`${(Number(f.strength)*Number(f.qty)).toLocaleString()} men`:(f.type==='Ship'&&f.role?esc(f.role):'—')}</td>
+      <td class="dim" style="font-size:11px">${f.strength?fmtStr(f.strength,f.qty):(f.type==='Ship'&&f.role?esc(f.role):'—')}</td>
       <td class="dim" style="font-size:11px">${f.category?esc(f.category):'—'}</td>
       <td class="dim" style="font-size:11px">${f.note?`<em>${esc(f.note)}</em>`:'—'}</td>
     </tr>`;
@@ -1097,7 +1097,7 @@ function renderPersonForces(forces) {
       <td style="padding-left:24px;font-size:11px;color:var(--text2)">↳ ${esc(a.name)}</td>
       <td><span class="tag ${typeColor[a.type]||'tag-grey'}" style="font-size:9px">${a.type}</span></td>
       <td class="td-num" style="font-size:11px">${a.qty}</td>
-      <td class="dim" style="font-size:11px">${a.strength?`${(Number(a.strength)*Number(a.qty)).toLocaleString()} men`:'—'}</td>
+      <td class="dim" style="font-size:11px">${fmtStr(a.strength,a.qty)}</td>
       <td class="dim" style="font-size:11px">${a.category?esc(a.category):'—'}</td>
       <td class="dim" style="font-size:11px">${a.note?`<em>${esc(a.note)}</em>`:'—'}</td>
     </tr>`).join('');
@@ -1113,7 +1113,7 @@ function renderPersonForces(forces) {
 }
 function renderAttachedForces(forces) {
   if(!forces.length) return '<span class="dim">—</span>';
-  return forces.map(f=>`<div style="font-size:11px;line-height:1.8"><span class="tag ${f.type==='Formation'?'tag-red':f.type==='Misc'?'tag-blue':'tag-grey'}" style="font-size:10px">${f.qty}×</span> ${esc(f.name)}${f.strength?` <span class="dim">(${(Number(f.strength)*Number(f.qty)).toLocaleString()} men)</span>`:''}${f.note?` <em style="color:var(--text2)">(${esc(f.note)})</em>`:''}</div>`).join('');
+  return forces.map(f=>`<div style="font-size:11px;line-height:1.8"><span class="tag ${f.type==='Formation'?'tag-red':f.type==='Misc'?'tag-blue':'tag-grey'}" style="font-size:10px">${f.qty}×</span> ${esc(f.name)}${f.strength?` <span class="dim">(${fmtStr(f.strength,f.qty)})</span>`:''}${f.note?` <em style="color:var(--text2)">(${esc(f.note)})</em>`:''}</div>`).join('');
 }
 function deploymentSummary(item) {
   const deps = (item.deployments||[]).filter(d=>Number(d.qty)>0);
@@ -1121,6 +1121,13 @@ function deploymentSummary(item) {
   return deps.map(d=>`<div style="font-size:11px;line-height:1.7;color:var(--text2)"><span class="badge-deployed" style="font-size:10px">${d.qty}</span> <span class="loc-chip" style="font-size:10px;padding:1px 7px">📍 ${esc(d.location||'Unknown')}</span>${d.note?` <em style="font-size:10px">${esc(d.note)}</em>`:''}</div>`).join('');
 }
 function calcBalance(player) { return Number(player.finances.balance) || 0; }
+// Format strength: "10 men" for qty 1, "10 ea · 50 total" for qty > 1
+function fmtStr(strength, qty) {
+  if(!strength) return '—';
+  const per = Number(strength); const q = Number(qty)||1;
+  if(q<=1) return `${per.toLocaleString()} men`;
+  return `${per.toLocaleString()} ea · ${(per*q).toLocaleString()} total`;
+}
 
 // ============================================================
 // ROUTING
@@ -1825,12 +1832,12 @@ function _renderSubSection(world, label, forces, structObj) {
         <td class="gold">${esc(e.name)}</td>
         <td><span class="tag ${e.type==='Formation'?'tag-red':e.type==='Asset'?'tag-grey':'tag-blue'}">${e.type}</span></td>
         <td>${e.qty}</td>
-        <td class="dim">${e.strength?(Number(e.strength)*Number(e.qty)).toLocaleString()+' men':'—'}</td>
+        <td class="dim">${fmtStr(e.strength,e.qty)}</td>
         <td class="dim">${esc(e.category)}</td>
         <td class="dim">${e.note?`<em>${esc(e.note)}</em>`:'—'}</td>
       </tr>`).join('');
       body += `<div class="tbl-wrap"><table>
-        <thead><tr><th>Name</th><th>Type</th><th>Qty</th><th>Strength (total)</th><th>Category</th><th>Note</th></tr></thead>
+        <thead><tr><th>Name</th><th>Type</th><th>Qty</th><th>Strength</th><th>Category</th><th>Note</th></tr></thead>
         <tbody>${rows}</tbody>
       </table></div>`;
     } else {
@@ -1877,7 +1884,7 @@ function _renderShipSection(world, shipName, shipData) {
         <td class="gold">${esc(e.name)}</td>
         <td><span class="tag ${typeColor[e.type]||'tag-grey'}">${e.type}</span></td>
         <td>${e.qty}</td>
-        <td class="dim">${e.strength?(Number(e.strength)*Number(e.qty)).toLocaleString()+' men':'—'}</td>
+        <td class="dim">${fmtStr(e.strength,e.qty)}</td>
         <td class="dim">${esc(e.category)}</td>
         <td class="dim">${e.note?`<em>${esc(e.note)}</em>`:'—'}</td>
       </tr>`).join('');
@@ -1936,12 +1943,12 @@ function _renderPersonSection(world, personName, personData) {
         <td class="gold">${esc(e.name)}</td>
         <td><span class="tag ${typeColor[e.type]||'tag-grey'}">${e.type}</span></td>
         <td>${e.qty}</td>
-        <td class="dim">${e.strength?(Number(e.strength)*Number(e.qty)).toLocaleString()+' men':'—'}</td>
+        <td class="dim">${fmtStr(e.strength,e.qty)}</td>
         <td class="dim">${esc(e.category)}</td>
         <td class="dim">${e.note?`<em>${esc(e.note)}</em>`:'—'}</td>
       </tr>`).join('');
       body += `<div class="tbl-wrap"><table>
-        <thead><tr><th>Name</th><th>Type</th><th>Qty</th><th>Strength (total)</th><th>Category</th><th>Note</th></tr></thead>
+        <thead><tr><th>Name</th><th>Type</th><th>Qty</th><th>Strength</th><th>Category</th><th>Note</th></tr></thead>
         <tbody>${rows}</tbody>
       </table></div>`;
     } else if(!nestedShipNames.length) {
@@ -2040,7 +2047,7 @@ function renderFormationsTab(p) {
   const rows = _sortData(p.formations||[],tid).map(f => `<tr>
     <td class="gold" style="word-break:break-word">${esc(f.name)}${_imgBtn(f.imageUrl,f.name)}</td>
     <td class="td-num">${f.quantity}</td>
-    <td style="text-align:center">${f.strength?`<span class="tag tag-grey" style="font-size:11px">${f.strength} men</span>`:'<span class="dim">—</span>'}</td>
+    <td style="text-align:center">${f.strength?(()=>{const per=Number(f.strength),tot=per*Number(f.quantity);return '<span class="tag tag-grey" style="font-size:11px">'+per.toLocaleString()+' ea</span>'+(Number(f.quantity)>1?'<span class="dim" style="font-size:11px;display:block;margin-top:2px">'+tot.toLocaleString()+' total</span>':'');})():'<span class="dim">—</span>'}</td>
     <td><span class="tag tag-grey">${esc(f.category)}</span></td>
     <td class="dim" style="word-break:break-word">${esc(f.description)}</td>
     <td>
@@ -2062,7 +2069,7 @@ function renderFormationsTab(p) {
     <div class="card-title">Formations <span class="tag tag-grey">${fList.length}</span>${fCats?`<span class="dim" style="font-size:11px;font-weight:normal;margin-left:8px">${fCats}</span>`:''}
     </div>
     <div class="tbl-wrap"><table style="width:100%;table-layout:fixed">
-      <colgroup><col style="width:130px"><col style="width:38px"><col style="width:80px"><col style="width:102px"><col><col style="width:210px"><col style="width:110px"></colgroup>
+      <colgroup><col style="width:130px"><col style="width:38px"><col style="width:120px"><col style="width:102px"><col><col style="width:210px"><col style="width:110px"></colgroup>
       <thead><tr>${_th(tid,'name','Name')}${_th(tid,'quantity','Qty','class="td-num"')}${_th(tid,'strength','Strength')}${_th(tid,'category','Category')}<th>Description</th><th>Deployed / Undeployed</th><th>Misc</th></tr></thead>
       <tbody>${rows || '<tr class="empty-row"><td colspan="7">No formations</td></tr>'}</tbody>
     </table></div>

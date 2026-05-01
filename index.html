@@ -3114,10 +3114,6 @@ function renderAdminCharacterEdit(p) {
       <label>Background</label>
       <textarea id="ce-background" rows="4">${esc(c.background||'')}</textarea>
     </div>
-    <div class="form-row">
-      <label>Notes</label>
-      <textarea id="ce-notes">${esc(c.notes||'')}</textarea>
-    </div>
     <div style="border-top:1px solid var(--border);margin-top:12px;padding-top:12px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
         <label style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text2)">Skills</label>
@@ -3136,6 +3132,10 @@ function renderAdminCharacterEdit(p) {
         </div>`).join('')}
         ${!(c.skills||[]).length?`<div class="dim" style="font-size:12px;font-style:italic;padding:4px">No skills yet.</div>`:''}
       </div>
+    </div>
+    <div class="form-row">
+      <label>Notes</label>
+      <textarea id="ce-notes">${esc(c.notes||'')}</textarea>
     </div>
     <div class="form-row">
       <label>Character Image</label>

@@ -19,6 +19,12 @@
     --text2: #8888aa;
     --green: #27ae60;
     --blue: #2980b9;
+    --deploy-ship-color: #2980b9;
+    --deploy-ship-bg: rgba(41,128,185,0.08);
+    --deploy-ship-border: rgba(41,128,185,0.45);
+    --deploy-appr-color: #e74c3c;
+    --deploy-appr-bg: rgba(231,76,60,0.08);
+    --deploy-appr-border: rgba(231,76,60,0.45);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: var(--bg); color: var(--text); font-family: 'Trebuchet MS', sans-serif; font-size: 14px; min-height: 100vh; }
@@ -853,6 +859,9 @@ const THEMES = {
       '--bg':    '#020c18', '--bg2':   '#04111f', '--bg3':   '#071828',
       '--border':'#0c3a55', '--gold':  '#00ccff', '--gold2': '#00eeff',
       '--text':  '#b0d8f0', '--text2': '#5fa8c4', '--blue':  '#0099dd',
+      '--deploy-ship-color': '#2ecc71',
+      '--deploy-ship-bg':    'rgba(46,204,113,0.08)',
+      '--deploy-ship-border':'rgba(46,204,113,0.45)',
     },
     extra: `
       body::before { content:''; position:fixed; inset:0; pointer-events:none; z-index:9998;
@@ -880,6 +889,9 @@ const THEMES = {
       '--bg':    '#1a0208', '--bg2':   '#260410', '--bg3':   '#320718',
       '--border':'#6e1428', '--gold':  '#dd1535', '--gold2': '#ff2244',
       '--text':  '#f2dde0', '--text2': '#d4b0b6', '--blue':  '#7700bb',
+      '--deploy-appr-color': '#f1c40f',
+      '--deploy-appr-bg':    'rgba(241,196,15,0.08)',
+      '--deploy-appr-border':'rgba(241,196,15,0.45)',
     },
     extra: `
       body::before { content:''; position:fixed; inset:0; pointer-events:none; z-index:9998;
@@ -1884,10 +1896,9 @@ function _renderShipSection(world, shipName, shipData) {
     totalStrength>0?`${totalStrength.toLocaleString()} men`:null,
     s.class||null
   ].filter(Boolean).join(' · ');
-  const _shipC  = currentTheme==='holographic' ? {c:'#27ae60',r:'39,174,96'} : {c:'var(--blue)',r:'41,128,185'};
-  return `<div class="subloc-row" style="border-color:rgba(${_shipC.r},0.45)">
-    <div class="subloc-hdr" style="border-left:3px solid ${_shipC.c};background:rgba(${_shipC.r},0.08)" onclick="_deploySubToggle('${wEsc}','${kEsc}')">
-      <span class="subloc-name" style="font-size:15px;color:${_shipC.c}">🚀 ${esc(shipName)}</span>
+  return `<div class="subloc-row" style="border-color:var(--deploy-ship-border)">
+    <div class="subloc-hdr" style="border-left:3px solid var(--deploy-ship-color);background:var(--deploy-ship-bg)" onclick="_deploySubToggle('${wEsc}','${kEsc}')">
+      <span class="subloc-name" style="font-size:15px;color:var(--deploy-ship-color)">🚀 ${esc(shipName)}</span>
       <span class="subloc-meta">${meta} ${open?'▲':'▼'}</span>
     </div>
     ${open?`<div class="subloc-body">${body}</div>`:''}
@@ -1904,10 +1915,9 @@ function _renderPersonSection(world, personName, personData) {
   const isAppr = personData.type==='apprentice';
   const icon = isAppr ? '⚡' : '👤';
 
-  const _apprC = currentTheme==='sith' ? {c:'#f1c40f',r:'241,196,15'} : {c:'var(--red2)',r:'231,76,60'};
-  const accentColor = isAppr ? _apprC.c : 'var(--gold)';
-  const accentBg    = isAppr ? `rgba(${_apprC.r},0.08)` : 'rgba(212,175,55,0.08)';
-  const accentBorder= isAppr ? `rgba(${_apprC.r},0.45)` : 'rgba(212,175,55,0.45)';
+  const accentColor = isAppr ? 'var(--deploy-appr-color)' : 'var(--gold)';
+  const accentBg    = isAppr ? 'var(--deploy-appr-bg)'    : 'rgba(212,175,55,0.08)';
+  const accentBorder= isAppr ? 'var(--deploy-appr-border)': 'rgba(212,175,55,0.45)';
 
   const nestedShipNames = Object.keys(personData.ships||{});
   let body = '';

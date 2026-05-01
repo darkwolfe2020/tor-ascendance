@@ -1884,9 +1884,9 @@ function _renderShipSection(world, shipName, shipData) {
     totalStrength>0?`${totalStrength.toLocaleString()} men`:null,
     s.class||null
   ].filter(Boolean).join(' · ');
-  return `<div class="subloc-row">
-    <div class="subloc-hdr" onclick="_deploySubToggle('${wEsc}','${kEsc}')">
-      <span class="subloc-name">🚀 ${esc(shipName)}</span>
+  return `<div class="subloc-row" style="border-color:rgba(41,128,185,0.45)">
+    <div class="subloc-hdr" style="border-left:3px solid var(--blue);background:rgba(41,128,185,0.08)" onclick="_deploySubToggle('${wEsc}','${kEsc}')">
+      <span class="subloc-name" style="font-size:15px;color:var(--blue)">🚀 ${esc(shipName)}</span>
       <span class="subloc-meta">${meta} ${open?'▲':'▼'}</span>
     </div>
     ${open?`<div class="subloc-body">${body}</div>`:''}
@@ -1903,11 +1903,15 @@ function _renderPersonSection(world, personName, personData) {
   const isAppr = personData.type==='apprentice';
   const icon = isAppr ? '⚡' : '👤';
 
+  const accentColor = isAppr ? 'var(--red2)' : 'var(--gold)';
+  const accentBg    = isAppr ? 'rgba(231,76,60,0.08)' : 'rgba(212,175,55,0.08)';
+  const accentBorder= isAppr ? 'rgba(231,76,60,0.45)' : 'rgba(212,175,55,0.45)';
+
   const nestedShipNames = Object.keys(personData.ships||{});
   let body = '';
   if(open) {
     body += `<div class="struct-info">
-      <span style="color:var(--gold);font-weight:600">${esc(personName)}</span>
+      <span style="color:${accentColor};font-weight:600">${esc(personName)}</span>
       ${isAppr&&person.rank?`<span class="tag tag-red" style="font-size:10px">${esc(person.rank)}</span>`:''}
       ${!isAppr&&person.role?`<span class="tag tag-blue" style="font-size:10px">${esc(person.role)}</span>`:''}
       ${person.species?`<span class="tag tag-grey" style="font-size:10px">${esc(person.species)}</span>`:''}
@@ -1946,9 +1950,9 @@ function _renderPersonSection(world, personName, personData) {
     isAppr ? (person.rank||'Apprentice') : (person.role||'Notable'),
   ].filter(Boolean).join(' · ');
 
-  return `<div class="subloc-row">
-    <div class="subloc-hdr" onclick="_deploySubToggle('${wEsc}','${kEsc}')">
-      <span class="subloc-name">${icon} ${esc(personName)}</span>
+  return `<div class="subloc-row" style="border-color:${accentBorder}">
+    <div class="subloc-hdr" style="border-left:3px solid ${accentColor};background:${accentBg}" onclick="_deploySubToggle('${wEsc}','${kEsc}')">
+      <span class="subloc-name" style="font-size:15px;color:${accentColor}">${icon} ${esc(personName)}</span>
       <span class="subloc-meta">${meta} ${open?'▲':'▼'}</span>
     </div>
     ${open?`<div class="subloc-body">${body}</div>`:''}

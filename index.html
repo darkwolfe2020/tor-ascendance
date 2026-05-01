@@ -1668,9 +1668,9 @@ let _deployedOpen = {};
 let _deployedSubOpen = {};
 
 function _buildLocationTree(p) {
-  // tree: { worldName: { structures: { structName: { obj, forces:[] } }, ships: { shipName: { obj, qty, note, forces:[] } }, generic: [] } }
+  // tree: { worldName: { structures:{}, ships:{}, persons:{}, generic:[] } }
   const tree = {};
-  const ensureWorld = w => { if(!tree[w]) tree[w] = { structures:{}, ships:{}, generic:[] }; };
+  const ensureWorld = w => { if(!tree[w]) tree[w] = { structures:{}, ships:{}, persons:{}, generic:[] }; };
 
   // Register every structure under its planet
   (p.structures||[]).forEach(s => {
@@ -1701,7 +1701,28 @@ function _buildLocationTree(p) {
     });
   });
 
-  // Place deployed formations/assets/misc — check structures, then ships, then planets, then fallback
+  // Register apprentices and notables under their deployment locations (like ships)
+  const personWorldMap = {}; // person name → first world placed in
+  ['apprentices','notables'].forEach(key => {
+    const pType = key==='apprentices'?'apprentice':'notable';
+    (p[key]||[]).forEach(person => {
+      if(!person.name) return;
+      (person.deployments||[]).forEach(d => {
+        if(!(Number(d.qty)>0)) return;
+        const loc = (d.location||'').trim();
+        const world = loc || 'Unassigned';
+        ensureWorld(world);
+        if(!tree[world].persons[person.name]) {
+          tree[world].persons[person.name] = { obj:person, qty:Number(d.qty), note:d.note||'', forces:[], type:pType };
+          if(!personWorldMap[person.name]) personWorldMap[person.name] = world;
+        } else {
+          tree[world].persons[person.name].qty += Number(d.qty);
+        }
+      });
+    });
+  });
+
+  // Place deployed formations/assets/misc — check structures, then ships, then persons, then planets, then fallback
   ['formations','assets','miscItems'].forEach(key => {
     const type = key==='formations'?'Formation':key==='assets'?'Asset':'Misc';
     (p[key]||[]).forEach(item => {
@@ -1718,6 +1739,10 @@ function _buildLocationTree(p) {
           // Force is aboard a named ship — nest it under that ship
           const world = shipWorldMap[loc];
           tree[world].ships[loc].forces.push(entry);
+        } else if(personWorldMap[loc]!==undefined) {
+          // Force is assigned to a person — nest it under them
+          const world = personWorldMap[loc];
+          tree[world].persons[loc].forces.push(entry);
         } else if(PLANETS.includes(loc)) {
           ensureWorld(loc);
           tree[loc].generic.push(entry);
@@ -1850,6 +1875,61 @@ function _renderShipSection(world, shipName, shipData) {
   </div>`;
 }
 
+function _renderPersonSection(world, personName, personData) {
+  const k = world+'::person::'+personName;
+  const open = !!_deployedSubOpen[k];
+  const person = personData.obj;
+  const wEsc = world.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  const kEsc = ('person::'+personName).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  const typeColor = { Formation:'tag-red', Asset:'tag-grey', Misc:'tag-blue' };
+  const isAppr = personData.type==='apprentice';
+  const icon = isAppr ? '⚡' : '👤';
+
+  let body = '';
+  if(open) {
+    body += `<div class="struct-info">
+      <span style="color:var(--gold);font-weight:600">${esc(personName)}</span>
+      ${isAppr&&person.rank?`<span class="tag tag-red" style="font-size:10px">${esc(person.rank)}</span>`:''}
+      ${!isAppr&&person.role?`<span class="tag tag-blue" style="font-size:10px">${esc(person.role)}</span>`:''}
+      ${person.species?`<span class="tag tag-grey" style="font-size:10px">${esc(person.species)}</span>`:''}
+      ${personData.note?`<em style="font-size:11px;color:var(--text2)">${esc(personData.note)}</em>`:''}
+      ${person.description?`<div class="dim" style="margin-top:4px;font-size:12px">${esc(person.description)}</div>`:''}
+    </div>`;
+    if(personData.forces.length) {
+      const rows = personData.forces.map(e=>`<tr>
+        <td class="gold">${esc(e.name)}</td>
+        <td><span class="tag ${typeColor[e.type]||'tag-grey'}">${e.type}</span></td>
+        <td>${e.qty}</td>
+        <td class="dim">${e.strength?(Number(e.strength)*Number(e.qty)).toLocaleString()+' men':'—'}</td>
+        <td class="dim">${esc(e.category)}</td>
+        <td class="dim">${e.note?`<em>${esc(e.note)}</em>`:'—'}</td>
+      </tr>`).join('');
+      body += `<div class="tbl-wrap"><table>
+        <thead><tr><th>Name</th><th>Type</th><th>Qty</th><th>Strength (total)</th><th>Category</th><th>Note</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>`;
+    } else {
+      body += `<div class="dim" style="font-size:12px;padding:4px 0">No forces assigned to this person.</div>`;
+    }
+  }
+
+  const totalForces = personData.forces.reduce((s,e)=>s+Number(e.qty),0);
+  const totalStrength = depStrength(personData.forces);
+  const meta = [
+    totalForces>0 ? `${totalForces} force${totalForces!==1?'s':''}` : 'No assigned forces',
+    totalStrength>0 ? `${totalStrength.toLocaleString()} men` : null,
+    isAppr ? (person.rank||'Apprentice') : (person.role||'Notable'),
+  ].filter(Boolean).join(' · ');
+
+  return `<div class="subloc-row">
+    <div class="subloc-hdr" onclick="_deploySubToggle('${wEsc}','${kEsc}')">
+      <span class="subloc-name">${icon} ${esc(personName)}</span>
+      <span class="subloc-meta">${meta} ${open?'▲':'▼'}</span>
+    </div>
+    ${open?`<div class="subloc-body">${body}</div>`:''}
+  </div>`;
+}
+
 function renderDeployed() {
   const p = STATE.players[currentPlayer];
   if(!p) return '';
@@ -1865,15 +1945,18 @@ function renderDeployed() {
   return worlds.map(world => {
     const wd = tree[world];
     const open = !!_deployedOpen[world];
-    const structNames = Object.keys(wd.structures);
-    const shipNames   = Object.keys(wd.ships||{});
+    const structNames  = Object.keys(wd.structures);
+    const shipNames    = Object.keys(wd.ships||{});
+    const personNames  = Object.keys(wd.persons||{});
     const allForces = [
       ...wd.generic,
       ...structNames.flatMap(n=>wd.structures[n].forces),
-      ...shipNames.flatMap(n=>(wd.ships[n].forces||[]))
+      ...shipNames.flatMap(n=>(wd.ships[n].forces||[])),
+      ...personNames.flatMap(n=>(wd.persons[n].forces||[]))
     ];
     const totalUnits = allForces.reduce((s,e)=>s+Number(e.qty),0)
-      + shipNames.reduce((s,n)=>s+Number(wd.ships[n].qty||0),0);
+      + shipNames.reduce((s,n)=>s+Number(wd.ships[n].qty||0),0)
+      + personNames.reduce((s,n)=>s+Number(wd.persons[n].qty||0),0);
     const totalStrength = depStrength(allForces);
 
     let body = '';
@@ -1881,6 +1964,7 @@ function renderDeployed() {
       if(wd.generic.length) body += _renderSubSection(world,'Generic',wd.generic,null);
       structNames.forEach(n=>{ body += _renderSubSection(world,n,wd.structures[n].forces,wd.structures[n].obj); });
       shipNames.forEach(n=>{ body += _renderShipSection(world,n,wd.ships[n]); });
+      personNames.forEach(n=>{ body += _renderPersonSection(world,n,wd.persons[n]); });
     }
 
     const wEsc = world.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
@@ -1888,7 +1972,8 @@ function renderDeployed() {
       totalUnits>0?`${totalUnits} unit${totalUnits!==1?'s':''}`:null,
       totalStrength>0?`${totalStrength.toLocaleString()} men`:null,
       structNames.length?`${structNames.length} structure${structNames.length!==1?'s':''}`:null,
-      shipNames.length?`${shipNames.length} ship${shipNames.length!==1?'s':''}`:null
+      shipNames.length?`${shipNames.length} ship${shipNames.length!==1?'s':''}`:null,
+      personNames.length?`${personNames.length} person${personNames.length!==1?'s':''}`:null
     ].filter(Boolean).join(' · ') || 'Empty';
     return `<div class="world-card">
       <div class="world-hdr" onclick="_deployToggle('${wEsc}')">
@@ -2110,10 +2195,11 @@ function _depHdr() {
   const p = STATE.players[_depPid||currentPlayer];
   const item = p&&p[_depListKey]&&p[_depListKey].find(x=>x.id===_depItemId);
   if(!item) return '';
+  const qty = item.quantity||1; // default 1 for persons (apprentices/notables)
   const totalDep = _depEdits.reduce((s,d)=>s+(Number(d.qty)||0),0);
-  const undep = Math.max(0,item.quantity-totalDep);
-  const over = totalDep>item.quantity;
-  return `Total: <strong>${item.quantity}</strong> &nbsp;·&nbsp; Deployed: <strong style="color:${over?'var(--red2)':'var(--green)'}">${totalDep}</strong> &nbsp;·&nbsp; Undeployed: <strong>${undep}</strong>${over?' <span style="color:var(--red2)">⚠ Exceeds total!</span>':''}`;
+  const undep = Math.max(0,qty-totalDep);
+  const over = totalDep>qty;
+  return `Total: <strong>${qty}</strong> &nbsp;·&nbsp; Deployed: <strong style="color:${over?'var(--red2)':'var(--green)'}">${totalDep}</strong> &nbsp;·&nbsp; Undeployed: <strong>${undep}</strong>${over?' <span style="color:var(--red2)">⚠ Exceeds total!</span>':''}`;
 }
 
 function _renderLocOptions(i, text) {
@@ -2144,7 +2230,19 @@ function _renderLocOptions(i, text) {
       return `<div class="loc-opt" onclick="event.stopPropagation();_depSelectLoc(${i},'${s.name.replace(/'/g,"\\'")}')"><span>🚀 ${esc(s.name)}</span><span class="dim" style="font-size:11px;margin-left:8px">${esc(s.class||'')}${depLoc?' · '+depLoc:''}</span></div>`;
     }).join('');
   }
-  const allNames = [...managed.map(l=>l.name),...structs.map(s=>s.name),...ships.map(s=>s.name)];
+  const allPersons = [
+    ...(p.apprentices||[]).filter(a=>a.name&&a.name.trim()).map(a=>({...a,_pType:'Apprentice'})),
+    ...(p.notables||[]).filter(n=>n.name&&n.name.trim()).map(n=>({...n,_pType:'Notable'}))
+  ];
+  const filtPersons = q ? allPersons.filter(per=>per.name.toLowerCase().includes(q)) : allPersons;
+  if(filtPersons.length) {
+    html += `<div class="loc-sec">👤 Your People</div>`;
+    html += filtPersons.map(per=>{
+      const depLoc = (per.deployments||[]).filter(d=>d.qty>0).map(d=>d.location||'?').join(', ');
+      return `<div class="loc-opt" onclick="event.stopPropagation();_depSelectLoc(${i},'${per.name.replace(/'/g,"\\'")}')"><span>👤 ${esc(per.name)}</span><span class="dim" style="font-size:11px;margin-left:8px">${esc(per._pType)}${depLoc?' · '+depLoc:''}</span></div>`;
+    }).join('');
+  }
+  const allNames = [...managed.map(l=>l.name),...structs.map(s=>s.name),...ships.map(s=>s.name),...allPersons.map(per=>per.name)];
   const exactExists = allNames.some(n=>n.toLowerCase()===q);
   if(text&&!exactExists) html += `<div class="loc-opt loc-create" onclick="event.stopPropagation();_depSelectLoc(${i},'${text.replace(/'/g,"\\'").replace(/"/g,'\\"')}')">+ Create &ldquo;${esc(text)}&rdquo;</div>`;
   if(!html) html = `<div class="loc-opt" style="color:var(--text2);cursor:default">No locations found</div>`;
@@ -2454,6 +2552,7 @@ function renderApprentices() {
   const cards = apps.map(a=>{
     const equipItems = (a.equipment||'').split('\n').map(s=>s.trim()).filter(Boolean);
     const forces = getPersonForces(p, a.name);
+    const deployedLocs = (a.deployments||[]).filter(d=>Number(d.qty)>0).map(d=>d.location||'?');
     return `
     <div style="display:flex;flex-direction:column;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:12px">
       <div style="display:flex;gap:16px">
@@ -2474,6 +2573,13 @@ function renderApprentices() {
           </div>
           ${a.fightingStyle?`<div style="margin-bottom:8px"><div style="color:var(--text2);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">Fighting Style</div><div style="font-size:13px">${esc(a.fightingStyle)}</div></div>`:''}
           ${a.description?`<div><div style="color:var(--text2);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">Description</div><div class="dim" style="font-size:13px">${esc(a.description)}</div></div>`:''}
+          <div style="margin-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-top:1px solid var(--border);padding-top:8px">
+            <span style="font-size:11px;color:var(--text2)">📍</span>
+            ${deployedLocs.length
+              ? deployedLocs.map(l=>`<span class="tag tag-grey" style="font-size:11px">${esc(l)}</span>`).join('')
+              : `<span class="dim" style="font-size:12px;font-style:italic">Not deployed</span>`}
+            ${a.id?`<button class="btn btn-ghost btn-sm" onclick="showDeployModal('apprentices','${a.id}')">Reposition</button>`:''}
+          </div>
         </div>
         <div style="width:200px;flex-shrink:0;border-left:1px solid var(--border);padding-left:14px">
           <div style="color:var(--text2);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Equipment</div>
@@ -2509,6 +2615,7 @@ function renderNotables() {
   const cards = notables.map(n=>{
     const equipItems = (n.equipment||'').split('\n').map(s=>s.trim()).filter(Boolean);
     const forces = getPersonForces(p, n.name);
+    const deployedLocs = (n.deployments||[]).filter(d=>Number(d.qty)>0).map(d=>d.location||'?');
     return `
     <div style="display:flex;flex-direction:column;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:12px">
       <div style="display:flex;gap:16px">
@@ -2526,6 +2633,13 @@ function renderNotables() {
           </div>
           ${n.fightingStyle?`<div style="margin-bottom:8px"><div style="color:var(--text2);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">Fighting Style</div><div style="font-size:13px">${esc(n.fightingStyle)}</div></div>`:''}
           ${n.description?`<div><div style="color:var(--text2);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">Description</div><div class="dim" style="font-size:13px">${esc(n.description)}</div></div>`:''}
+          <div style="margin-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-top:1px solid var(--border);padding-top:8px">
+            <span style="font-size:11px;color:var(--text2)">📍</span>
+            ${deployedLocs.length
+              ? deployedLocs.map(l=>`<span class="tag tag-grey" style="font-size:11px">${esc(l)}</span>`).join('')
+              : `<span class="dim" style="font-size:12px;font-style:italic">Not deployed</span>`}
+            ${n.id?`<button class="btn btn-ghost btn-sm" onclick="showDeployModal('notables','${n.id}')">Reposition</button>`:''}
+          </div>
         </div>
         <div style="width:200px;flex-shrink:0;border-left:1px solid var(--border);padding-left:14px">
           <div style="color:var(--text2);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Equipment</div>
@@ -3075,7 +3189,7 @@ function renderAdminNotablesEdit(p) {
 }
 function adminAddNotable(pid) {
   STATE.players[pid].notables = STATE.players[pid].notables||[];
-  STATE.players[pid].notables.push({ id:newId(), name:'', role:'', species:'', location:'', fightingStyle:'', description:'', equipment:'', imageUrl:'' });
+  STATE.players[pid].notables.push({ id:newId(), name:'', role:'', species:'', location:'', fightingStyle:'', description:'', equipment:'', imageUrl:'', quantity:1, deployments:[], undeployed:0 });
   saveState(); render();
 }
 
@@ -3212,6 +3326,11 @@ function adminAddRow(pid, listKey) {
   const newRow = { id: newId() };
   fields.forEach(f => newRow[f] = ['quantity'].includes(f)?0:'');
   if(['formations','assets','miscItems','ships'].includes(listKey)) {
+    newRow.deployments = [];
+    newRow.undeployed = 0;
+  }
+  if(['apprentices','notables'].includes(listKey)) {
+    newRow.quantity = 1;
     newRow.deployments = [];
     newRow.undeployed = 0;
   }

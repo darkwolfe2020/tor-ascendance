@@ -1884,9 +1884,10 @@ function _renderShipSection(world, shipName, shipData) {
     totalStrength>0?`${totalStrength.toLocaleString()} men`:null,
     s.class||null
   ].filter(Boolean).join(' · ');
-  return `<div class="subloc-row" style="border-color:rgba(39,174,96,0.45)">
-    <div class="subloc-hdr" style="border-left:3px solid var(--green);background:rgba(39,174,96,0.08)" onclick="_deploySubToggle('${wEsc}','${kEsc}')">
-      <span class="subloc-name" style="font-size:15px;color:var(--green)">🚀 ${esc(shipName)}</span>
+  const _shipC  = currentTheme==='holographic' ? {c:'#27ae60',r:'39,174,96'} : {c:'var(--blue)',r:'41,128,185'};
+  return `<div class="subloc-row" style="border-color:rgba(${_shipC.r},0.45)">
+    <div class="subloc-hdr" style="border-left:3px solid ${_shipC.c};background:rgba(${_shipC.r},0.08)" onclick="_deploySubToggle('${wEsc}','${kEsc}')">
+      <span class="subloc-name" style="font-size:15px;color:${_shipC.c}">🚀 ${esc(shipName)}</span>
       <span class="subloc-meta">${meta} ${open?'▲':'▼'}</span>
     </div>
     ${open?`<div class="subloc-body">${body}</div>`:''}
@@ -1903,9 +1904,10 @@ function _renderPersonSection(world, personName, personData) {
   const isAppr = personData.type==='apprentice';
   const icon = isAppr ? '⚡' : '👤';
 
-  const accentColor = isAppr ? '#f1c40f' : 'var(--gold)';
-  const accentBg    = isAppr ? 'rgba(241,196,15,0.08)' : 'rgba(212,175,55,0.08)';
-  const accentBorder= isAppr ? 'rgba(241,196,15,0.45)' : 'rgba(212,175,55,0.45)';
+  const _apprC = currentTheme==='sith' ? {c:'#f1c40f',r:'241,196,15'} : {c:'var(--red2)',r:'231,76,60'};
+  const accentColor = isAppr ? _apprC.c : 'var(--gold)';
+  const accentBg    = isAppr ? `rgba(${_apprC.r},0.08)` : 'rgba(212,175,55,0.08)';
+  const accentBorder= isAppr ? `rgba(${_apprC.r},0.45)` : 'rgba(212,175,55,0.45)';
 
   const nestedShipNames = Object.keys(personData.ships||{});
   let body = '';

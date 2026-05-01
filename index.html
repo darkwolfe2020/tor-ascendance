@@ -921,7 +921,8 @@ function setTheme(name) {
   localStorage.setItem('rta_theme', name);
   const theme = THEMES[name] || THEMES.default;
   const root = document.documentElement;
-  ['--bg','--bg2','--bg3','--border','--gold','--gold2','--text','--text2','--blue','--red','--red2'].forEach(v => root.style.removeProperty(v));
+  const allThemeVars = new Set(Object.values(THEMES).flatMap(t=>Object.keys(t.vars||{})));
+  allThemeVars.forEach(v => root.style.removeProperty(v));
   Object.entries(theme.vars||{}).forEach(([k,v]) => root.style.setProperty(k,v));
   let el = document.getElementById('theme-overrides-style');
   if(!el) { el = document.createElement('style'); el.id = 'theme-overrides-style'; document.head.appendChild(el); }

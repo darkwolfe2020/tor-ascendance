@@ -255,8 +255,8 @@ function saveState() {
   try {
     localStorage.setItem('rta_state', JSON.stringify(STATE));
   } catch(e) {
-    console.warn('localStorage quota exceeded:', e);
-    notify('⚠ Local storage full — image may be too large. Try a smaller image.', true);
+    // localStorage quota hit — Supabase will still save, so no user-facing error needed
+    console.warn('localStorage quota exceeded (Supabase will sync):', e);
   }
   clearTimeout(_saveTimer);
   _saveTimer = setTimeout(async () => {

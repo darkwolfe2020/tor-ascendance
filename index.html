@@ -1668,13 +1668,13 @@ function renderApprenticesSection(p) {
   const rows = _sortData(p.apprentices||[], tid).map(a=>`<tr>
     <td class="gold">${esc(a.name)}</td><td>${esc(a.form)}</td>
     <td><span class="tag tag-red">${esc(a.rank)}</span></td>
-    <td>${esc(a.specialization)}</td><td class="dim">${esc(a.location)}</td>
+    <td>${esc(a.specialization)}</td>
     <td class="dim" style="max-width:280px">${esc(a.description)}</td>
   </tr>`).join('');
   return `<div class="card">
     <div class="card-title">Apprentices</div>
     <div class="tbl-wrap"><table>
-      <thead><tr>${_th(tid,'name','Name')}<th>Form</th>${_th(tid,'rank','Rank')}${_th(tid,'specialization','Specialization')}${_th(tid,'location','Location')}<th>Description</th></tr></thead>
+      <thead><tr>${_th(tid,'name','Name')}<th>Form</th>${_th(tid,'rank','Rank')}${_th(tid,'specialization','Specialization')}<th>Description</th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>
   </div>`;
@@ -1687,13 +1687,12 @@ function renderNotablesSection(p) {
     <td class="gold">${esc(n.name)}</td>
     <td><span class="tag tag-blue">${esc(n.role||'')}</span></td>
     <td>${esc(n.species||'')}</td>
-    <td class="dim">${esc(n.location||'')}</td>
     <td class="dim" style="max-width:280px">${esc(n.description||'')}</td>
   </tr>`).join('');
   return `<div class="card">
     <div class="card-title">Notables</div>
     <div class="tbl-wrap"><table>
-      <thead><tr>${_th(tid,'name','Name')}${_th(tid,'role','Role')}${_th(tid,'species','Species')}${_th(tid,'location','Location')}<th>Description</th></tr></thead>
+      <thead><tr>${_th(tid,'name','Name')}${_th(tid,'role','Role')}${_th(tid,'species','Species')}<th>Description</th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>
   </div>`;
@@ -2681,7 +2680,6 @@ function renderApprentices() {
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
             <span style="color:var(--gold);font-size:15px;font-weight:700">${esc(a.name)}</span>
             <span class="tag tag-red">${esc(a.rank||'')}</span>
-            ${a.location?`<span class="dim" style="font-size:12px">${esc(a.location)}</span>`:''}
           </div>
           <div style="font-size:12px;margin-bottom:8px;display:flex;gap:16px;flex-wrap:wrap">
             ${a.form?`<span><span style="color:var(--text2);text-transform:uppercase;font-size:10px;letter-spacing:1px">Form </span>${esc(a.form)}</span>`:''}
@@ -2758,7 +2756,6 @@ function renderNotables() {
             <span style="color:var(--gold);font-size:15px;font-weight:700">${esc(n.name)}</span>
             ${n.role?`<span class="tag tag-blue">${esc(n.role)}</span>`:''}
             ${n.species?`<span class="tag tag-grey">${esc(n.species)}</span>`:''}
-            ${n.location?`<span class="dim" style="font-size:12px">📍 ${esc(n.location)}</span>`:''}
           </div>
           ${n.fightingStyle?`<div style="margin-bottom:8px"><div style="color:var(--text2);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">Fighting Style</div><div style="font-size:13px">${esc(n.fightingStyle)}</div></div>`:''}
           ${n.description?`<div><div style="color:var(--text2);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">Description</div><div class="dim" style="font-size:13px">${esc(n.description)}</div></div>`:''}
@@ -3284,8 +3281,8 @@ function clearNotableImage(pid, idx) {
 
 function renderAdminApprenticeEdit(p) {
   const list = p.apprentices||[];
-  const fields = ['name','rank','specialization','form','location','fightingStyle','description','equipment'];
-  const labels = { name:'Name', rank:'Rank', specialization:'Spec', form:'Form', location:'Location', fightingStyle:'Fighting Style', description:'Description', equipment:'Equipment (one per line)' };
+  const fields = ['name','rank','specialization','form','fightingStyle','description','equipment'];
+  const labels = { name:'Name', rank:'Rank', specialization:'Spec', form:'Form', fightingStyle:'Fighting Style', description:'Description', equipment:'Equipment (one per line)' };
   return `<div class="card">
     <div class="card-title">Apprentices (${list.length})
       <button class="btn btn-green btn-sm" onclick="adminAddRow('${p.id}','apprentices')">+ Add Row</button>
@@ -3352,8 +3349,8 @@ function renderAdminApprenticeEdit(p) {
 
 function renderAdminNotablesEdit(p) {
   const list = p.notables||[];
-  const fields = ['name','role','species','location','fightingStyle','description','equipment'];
-  const labels = { name:'Name', role:'Role / Title', species:'Species', location:'Location', fightingStyle:'Fighting Style', description:'Description', equipment:'Equipment (one per line)' };
+  const fields = ['name','role','species','fightingStyle','description','equipment'];
+  const labels = { name:'Name', role:'Role / Title', species:'Species', fightingStyle:'Fighting Style', description:'Description', equipment:'Equipment (one per line)' };
   return `<div class="card">
     <div class="card-title">Notables (${list.length})
       <button class="btn btn-green btn-sm" onclick="adminAddNotable('${p.id}')">+ Add Notable</button>
@@ -3408,7 +3405,7 @@ function adminUpdateApprArtifact(pid, apprIdx, artIdx, field, value) {
 }
 function adminAddNotable(pid) {
   STATE.players[pid].notables = STATE.players[pid].notables||[];
-  STATE.players[pid].notables.push({ id:newId(), name:'', role:'', species:'', location:'', fightingStyle:'', description:'', equipment:'', imageUrl:'', quantity:1, deployments:[], undeployed:0 });
+  STATE.players[pid].notables.push({ id:newId(), name:'', role:'', species:'', fightingStyle:'', description:'', equipment:'', imageUrl:'', quantity:1, deployments:[], undeployed:0 });
   saveState(); render();
 }
 
@@ -3508,7 +3505,7 @@ const ADMIN_LIST_FIELDS = {
   structures: ['name','quantity','category','description','location','locationNote','misc','imageUrl'],
   miscItems:  ['name','quantity','category','description','misc','imageUrl'],
   trophies:   ['name','number','aura','description','conflict','claimedFrom'],
-  apprentices:['name','form','rank','specialization','location','description'],
+  apprentices:['name','form','rank','specialization','description'],
   artifacts:  ['name','number','quality','description','effects'],
 };
 function renderAdminListEdit(p, listKey, title, fields) {

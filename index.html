@@ -1490,7 +1490,7 @@ function renderCharacter() {
             <div>
               <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
                 <span style="font-weight:600;font-size:13px">${esc(a.name||'')}</span>
-                ${a.quality?`<span class="tag ${a.quality==='Major'?'tag-gold':a.quality==='Normal'?'tag-blue':'tag-grey'}" style="font-size:10px">${esc(a.quality)}</span>`:''}
+                ${a.quality?`<span class="tag ${a.quality==='Grand'?'tag-red':a.quality==='Major'?'tag-gold':a.quality==='Normal'?'tag-blue':'tag-grey'}" style="font-size:10px">${esc(a.quality)}</span>`:''}
               </div>
               ${a.description?`<div class="dim" style="font-size:12px;margin-top:2px">${esc(a.description)}</div>`:''}
               ${a.effects?`<div style="font-size:12px;margin-top:2px">${esc(a.effects)}</div>`:''}
@@ -1702,7 +1702,7 @@ function renderArtifactsSection(p) {
   const tid='artifacts';
   const rows = _sortData(p.artifacts||[], tid).map(a=>`<tr>
     <td class="gold">${esc(a.name)}</td><td>${a.number}</td>
-    <td><span class="tag ${a.quality==='Major'?'tag-gold':a.quality==='Normal'?'tag-blue':'tag-grey'}">${esc(a.quality)}</span></td>
+    <td><span class="tag ${a.quality==='Grand'?'tag-red':a.quality==='Major'?'tag-gold':a.quality==='Normal'?'tag-blue':'tag-grey'}">${esc(a.quality)}</span></td>
     <td class="dim" style="max-width:220px">${esc(a.description)}</td>
     <td style="max-width:200px">${esc(a.effects)}</td>
   </tr>`).join('');
@@ -2707,7 +2707,7 @@ function renderApprentices() {
             <div>
               <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
                 <span style="font-size:12px;font-weight:600">${esc(art.name||'')}</span>
-                ${art.quality?`<span class="tag ${art.quality==='Major'?'tag-gold':art.quality==='Normal'?'tag-blue':'tag-grey'}" style="font-size:9px">${esc(art.quality)}</span>`:''}
+                ${art.quality?`<span class="tag ${art.quality==='Grand'?'tag-red':art.quality==='Major'?'tag-gold':art.quality==='Normal'?'tag-blue':'tag-grey'}" style="font-size:9px">${esc(art.quality)}</span>`:''}
               </div>
               ${art.description?`<div class="dim" style="font-size:11px;margin-top:1px">${esc(art.description)}</div>`:''}
               ${art.effects?`<div style="font-size:11px;margin-top:1px">${esc(art.effects)}</div>`:''}
@@ -3175,6 +3175,7 @@ function renderAdminCharacterEdit(p) {
                 <option value="Minor"${a.quality==='Minor'?' selected':''}>Minor</option>
                 <option value="Normal"${a.quality==='Normal'?' selected':''}>Normal</option>
                 <option value="Major"${a.quality==='Major'?' selected':''}>Major</option>
+                <option value="Grand"${a.quality==='Grand'?' selected':''}>Grand</option>
               </select></div>
             <div><label style="font-size:10px;color:var(--text2)">Description</label>
               <textarea id="ce-art-desc-${idx}" rows="2" style="width:100%">${esc(a.description||'')}</textarea></div>
@@ -3324,6 +3325,7 @@ function renderAdminApprenticeEdit(p) {
                         <option value="Minor"${art.quality==='Minor'?' selected':''}>Minor</option>
                         <option value="Normal"${art.quality==='Normal'?' selected':''}>Normal</option>
                         <option value="Major"${art.quality==='Major'?' selected':''}>Major</option>
+                        <option value="Grand"${art.quality==='Grand'?' selected':''}>Grand</option>
                       </select></div>
                     <div><label style="font-size:9px;color:var(--text2)">Description</label>
                       <textarea style="width:100%;font-size:12px" rows="2"
@@ -3510,7 +3512,7 @@ const ADMIN_LIST_FIELDS = {
 };
 function renderAdminListEdit(p, listKey, title, fields) {
   const list = p[listKey]||[];
-  const colWidth = { name:'90px', description:'380px', category:'80px', quantity:'55px', number:'55px', strength:'60px', deployed:'60px', undeployed:'70px', location:'110px', locationNote:'130px', misc:'110px', attachedForces:'110px', aura:'60px', quality:'70px', form:'90px', rank:'70px', specialization:'90px', conflict:'110px', claimedFrom:'110px', effects:'200px', class:'130px', role:'90px', specifications:'200px', imageUrl:'220px' };
+  const colWidth = { name:'90px', description:'380px', category:'80px', quantity:'55px', number:'36px', strength:'60px', deployed:'60px', undeployed:'70px', location:'110px', locationNote:'130px', misc:'110px', attachedForces:'110px', aura:'60px', quality:'90px', form:'90px', rank:'70px', specialization:'90px', conflict:'110px', claimedFrom:'110px', effects:'200px', class:'130px', role:'90px', specifications:'200px', imageUrl:'220px' };
   const canMove = listKey in MOVABLE_LISTS;
   const moveOpts = canMove ? Object.entries(MOVABLE_LISTS).filter(([k])=>k!==listKey).map(([k,v])=>`<option value="${k}">${v}</option>`).join('') : '';
   return `<div class="card">
@@ -3524,7 +3526,8 @@ function renderAdminListEdit(p, listKey, title, fields) {
           ${fields.map(f=>{
             const isNum=['quantity','deployed','undeployed','strength','number'].includes(f);
             const w=colWidth[f]?'calc('+colWidth[f]+' - 20px)':'80px';
-            if(listKey==='structures'&&f==='location') return`<td><div class="loc-selector" style="min-width:${w}">${_alpCellHtml(p.id,idx,row.location||'')}</div></td>`;
+            if(listKey==='structures'&&f==='location') return`<td style="vertical-align:middle"><div class="loc-selector" style="min-width:${w}">${_alpCellHtml(p.id,idx,row.location||'')}</div></td>`;
+            if(listKey==='artifacts'&&f==='quality') return`<td style="vertical-align:middle"><select style="min-width:${w}" onchange="adminUpdateCell('${p.id}','${listKey}',${idx},'quality',this.value)"><option value="">—</option>${['Minor','Normal','Major','Grand'].map(q=>`<option value="${q}"${row.quality===q?' selected':''}>${q}</option>`).join('')}</select></td>`;
             if(f==='imageUrl') return`<td style="vertical-align:top">
               <div style="display:flex;flex-direction:column;gap:4px;width:200px">
                 ${row.imageUrl?`<img src="${row.imageUrl}" style="max-height:70px;max-width:190px;object-fit:contain;border-radius:3px;display:block">
@@ -3536,9 +3539,9 @@ function renderAdminListEdit(p, listKey, title, fields) {
                 <input type="file" accept="image/*" style="font-size:11px;max-width:200px;color:var(--text2)" onchange="_adminImgFile(this,'${p.id}','${listKey}',${idx})">
               </div>
             </td>`;
-            return isNum?`<td><input type="text" value="${fmtNum(row[f]||0)}" style="min-width:${w}" oninput="numInput(this)" inputmode="numeric" onchange="adminUpdateCell('${p.id}','${listKey}',${idx},'${f}',this.value)"></td>`:`<td><textarea class="admin-ta" style="min-width:${w}" onfocus="adminTaFocus(this)" onblur="adminTaBlur(this)" onchange="adminUpdateCell('${p.id}','${listKey}',${idx},'${f}',this.value)">${esc(row[f]||'')}</textarea></td>`;
+            return isNum?`<td style="vertical-align:middle"><input type="text" value="${fmtNum(row[f]||0)}" style="min-width:${w}" oninput="numInput(this)" inputmode="numeric" onchange="adminUpdateCell('${p.id}','${listKey}',${idx},'${f}',this.value)"></td>`:`<td style="vertical-align:middle"><textarea class="admin-ta" style="min-width:${w}" onfocus="adminTaFocus(this)" onblur="adminTaBlur(this)" onchange="adminUpdateCell('${p.id}','${listKey}',${idx},'${f}',this.value)">${esc(row[f]||'')}</textarea></td>`;
           }).join('')}
-          <td style="white-space:nowrap;vertical-align:top">
+          <td style="white-space:nowrap;vertical-align:middle">
             <div style="display:flex;flex-direction:column;gap:4px;align-items:stretch">
               ${canMove?`<select style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);border-radius:4px;padding:2px 4px;font-size:11px;font-family:inherit;width:100%" onchange="if(this.value){adminMoveRow('${p.id}','${listKey}',${idx},this.value);this.value=''}"><option value="">↔ Move…</option>${moveOpts}</select>`:''}
               <button class="btn btn-red btn-sm" onclick="adminDeleteRow('${p.id}','${listKey}',${idx})">✕ Delete</button>

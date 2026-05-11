@@ -1563,6 +1563,10 @@ function cancelDeployRequest(reqId) {
   notify('Deployment request cancelled.');
   render();
 }
+function cancelDeployByItem(listKey, itemId) {
+  const req = (STATE.deploymentRequests||[]).find(r=>r.listKey===listKey&&r.itemId===itemId&&r.status==='pending');
+  if(req) cancelDeployRequest(req.id);
+}
 
 function renderFactionSection(p) {
   const fd = p.factionData;
@@ -1973,7 +1977,7 @@ function _renderSubSection(world, label, forces, structObj) {
         const hasPending = e.itemId && pendingDepRequest(e.listKey, e.itemId);
         const reposCtrl = e.itemId
           ? (hasPending
-              ? `<span class="tag tag-gold" style="font-size:10px">⏳ Pending</span>`
+              ? `<span class="tag tag-gold" style="font-size:10px">⏳ Pending</span><button class="btn btn-red btn-sm" onclick="cancelDeployByItem('${e.listKey}','${e.itemId}')">✕</button>`
               : `<button class="btn btn-ghost btn-sm" onclick="showDeployModal('${e.listKey}','${e.itemId}')">↺ Reposition</button>`)
           : '';
         return `<tr${rowBg?` style="background:${rowBg}"`:''}">
@@ -2027,7 +2031,7 @@ function _renderShipSection(world, shipName, shipData, diffTag) {
       ${s.class?`  <span class="tag tag-blue" style="font-size:10px">${esc(s.class)}</span>`:''}
       ${s.role?`  <span class="tag tag-grey" style="font-size:10px">${esc(s.role)}</span>`:''}
       ${s.quantity>1?`  <span class="dim" style="font-size:11px">×${s.quantity} ships</span>`:''}
-      ${_shipPending?`<span class="tag tag-gold" style="font-size:10px;margin-left:6px">⏳ Redeployment pending</span>`:s.id?`<button class="btn btn-ghost btn-sm" style="margin-left:6px" onclick="showDeployModal('ships','${s.id}')">↺ Reposition</button>`:''}
+      ${_shipPending?`<span class="tag tag-gold" style="font-size:10px;margin-left:6px">⏳ Pending</span><button class="btn btn-red btn-sm" onclick="cancelDeployByItem('ships','${s.id}')">✕</button>`:s.id?`<button class="btn btn-ghost btn-sm" style="margin-left:6px" onclick="showDeployModal('ships','${s.id}')">↺ Reposition</button>`:''}
       ${s.description?`<div class="dim" style="margin-top:4px;font-size:12px">${esc(s.description)}</div>`:''}
       ${s.specifications?`<div style="margin-top:3px;font-size:11px;color:var(--text2)">${esc(s.specifications)}</div>`:''}
     </div>`;
@@ -2097,7 +2101,7 @@ function _renderPersonSection(world, personName, personData, diffTag) {
       ${isAppr&&person.rank?`<span class="tag tag-red" style="font-size:10px">${esc(person.rank)}</span>`:''}
       ${!isAppr&&person.role?`<span class="tag tag-blue" style="font-size:10px">${esc(person.role)}</span>`:''}
       ${person.species?`<span class="tag tag-grey" style="font-size:10px">${esc(person.species)}</span>`:''}
-      ${_personPending?`<span class="tag tag-gold" style="font-size:10px;margin-left:6px">⏳ Redeployment pending</span>`:person.id?`<button class="btn btn-ghost btn-sm" style="margin-left:6px" onclick="showDeployModal('${_personLK}','${person.id}')">↺ Reposition</button>`:''}
+      ${_personPending?`<span class="tag tag-gold" style="font-size:10px;margin-left:6px">⏳ Pending</span><button class="btn btn-red btn-sm" onclick="cancelDeployByItem('${_personLK}','${person.id}')">✕</button>`:person.id?`<button class="btn btn-ghost btn-sm" style="margin-left:6px" onclick="showDeployModal('${_personLK}','${person.id}')">↺ Reposition</button>`:''}
       ${personData.note?`<em style="font-size:11px;color:var(--text2)">${esc(personData.note)}</em>`:''}
       ${person.description?`<div class="dim" style="margin-top:4px;font-size:12px">${esc(person.description)}</div>`:''}
     </div>`;
@@ -2266,7 +2270,7 @@ function renderFormationsTab(p) {
         <span class="badge-deployed" title="Deployed">${totalDeployed(f)}</span>
         <span class="sep">/</span>
         <span class="badge-undeployed" title="Undeployed">${f.undeployed}</span>
-        ${pendingDepRequest('formations',f.id)?`<span class="tag tag-gold" style="font-size:10px">⏳ Pending</span>`:`<button class="btn btn-ghost btn-sm" onclick="showDeployModal('formations','${f.id}')">Reposition</button>`}
+        ${pendingDepRequest('formations',f.id)?`<span class="tag tag-gold" style="font-size:10px">⏳ Pending</span><button class="btn btn-red btn-sm" onclick="cancelDeployByItem('formations','${f.id}')">✕</button>`:`<button class="btn btn-ghost btn-sm" onclick="showDeployModal('formations','${f.id}')">Reposition</button>`}
       </div>
       ${deploymentSummary(f)}
     </td>
@@ -2298,7 +2302,7 @@ function renderAssetsTab(p) {
         <span class="badge-deployed" title="Deployed">${totalDeployed(a)}</span>
         <span class="sep">/</span>
         <span class="badge-undeployed" title="Undeployed">${a.undeployed}</span>
-        ${pendingDepRequest('assets',a.id)?`<span class="tag tag-gold" style="font-size:10px">⏳ Pending</span>`:`<button class="btn btn-ghost btn-sm" onclick="showDeployModal('assets','${a.id}')">Reposition</button>`}
+        ${pendingDepRequest('assets',a.id)?`<span class="tag tag-gold" style="font-size:10px">⏳ Pending</span><button class="btn btn-red btn-sm" onclick="cancelDeployByItem('assets','${a.id}')">✕</button>`:`<button class="btn btn-ghost btn-sm" onclick="showDeployModal('assets','${a.id}')">Reposition</button>`}
       </div>
       ${deploymentSummary(a)}
     </td>
@@ -2335,7 +2339,7 @@ function renderShipsTab(p) {
           <span class="badge-deployed" title="Deployed">${totalDeployed(s)}</span>
           <span class="sep">/</span>
           <span class="badge-undeployed" title="Undeployed">${s.undeployed}</span>
-          ${pendingDepRequest('ships',s.id)?`<span class="tag tag-gold" style="font-size:10px">⏳ Pending</span>`:`<button class="btn btn-ghost btn-sm" onclick="showDeployModal('ships','${s.id}')">Reposition</button>`}
+          ${pendingDepRequest('ships',s.id)?`<span class="tag tag-gold" style="font-size:10px">⏳ Pending</span><button class="btn btn-red btn-sm" onclick="cancelDeployByItem('ships','${s.id}')">✕</button>`:`<button class="btn btn-ghost btn-sm" onclick="showDeployModal('ships','${s.id}')">Reposition</button>`}
         </div>
         ${deploymentSummary(s)}
       </td>
@@ -2406,7 +2410,7 @@ function renderMiscTab(p) {
         <span class="badge-deployed" title="Deployed">${totalDeployed(m)}</span>
         <span class="sep">/</span>
         <span class="badge-undeployed" title="Undeployed">${m.undeployed}</span>
-        ${pendingDepRequest('miscItems',m.id)?`<span class="tag tag-gold" style="font-size:10px">⏳ Pending</span>`:`<button class="btn btn-ghost btn-sm" onclick="showDeployModal('miscItems','${m.id}')">Reposition</button>`}
+        ${pendingDepRequest('miscItems',m.id)?`<span class="tag tag-gold" style="font-size:10px">⏳ Pending</span><button class="btn btn-red btn-sm" onclick="cancelDeployByItem('miscItems','${m.id}')">✕</button>`:`<button class="btn btn-ghost btn-sm" onclick="showDeployModal('miscItems','${m.id}')">Reposition</button>`}
       </div>
       ${deploymentSummary(m)}
     </td>
@@ -2839,7 +2843,7 @@ function renderApprentices() {
             ${deployedLocs.length
               ? deployedLocs.map(l=>`<span class="tag tag-grey" style="font-size:11px">${esc(l)}</span>`).join('')
               : `<span class="dim" style="font-size:12px;font-style:italic">Not deployed</span>`}
-            ${a.id?(pendingDepRequest('apprentices',a.id)?`<span class="tag tag-gold" style="font-size:10px">⏳ Pending</span>`:`<button class="btn btn-ghost btn-sm" onclick="showDeployModal('apprentices','${a.id}')">Reposition</button>`):''}
+            ${a.id?(pendingDepRequest('apprentices',a.id)?`<span class="tag tag-gold" style="font-size:10px">⏳ Pending</span><button class="btn btn-red btn-sm" onclick="cancelDeployByItem('apprentices','${a.id}')">✕</button>`:`<button class="btn btn-ghost btn-sm" onclick="showDeployModal('apprentices','${a.id}')">Reposition</button>`):''}
           </div>
         </div>
         <div style="width:200px;flex-shrink:0;border-left:1px solid var(--border);padding-left:14px">
@@ -2911,7 +2915,7 @@ function renderNotables() {
             ${deployedLocs.length
               ? deployedLocs.map(l=>`<span class="tag tag-grey" style="font-size:11px">${esc(l)}</span>`).join('')
               : `<span class="dim" style="font-size:12px;font-style:italic">Not deployed</span>`}
-            ${n.id?(pendingDepRequest('notables',n.id)?`<span class="tag tag-gold" style="font-size:10px">⏳ Pending</span>`:`<button class="btn btn-ghost btn-sm" onclick="showDeployModal('notables','${n.id}')">Reposition</button>`):''}
+            ${n.id?(pendingDepRequest('notables',n.id)?`<span class="tag tag-gold" style="font-size:10px">⏳ Pending</span><button class="btn btn-red btn-sm" onclick="cancelDeployByItem('notables','${n.id}')">✕</button>`:`<button class="btn btn-ghost btn-sm" onclick="showDeployModal('notables','${n.id}')">Reposition</button>`):''}
           </div>
         </div>
         <div style="width:200px;flex-shrink:0;border-left:1px solid var(--border);padding-left:14px">

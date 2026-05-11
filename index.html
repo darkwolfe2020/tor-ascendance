@@ -1768,8 +1768,8 @@ function renderAssets() {
   const p = STATE.players[currentPlayer];
   if(!p) return '';
 
-  const tabs = ['formations','assets','ships','structures','misc','apprentices','notables','population'];
-  const tabLabels = { formations:'Formations', assets:'Assets', ships:'Ships', structures:'Structures', misc:'Misc Items', apprentices:'Apprentices', notables:'Notables', population:'Population' };
+  const tabs = ['formations','assets','ships','structures','misc','apprentices','notables','population','artifacts'];
+  const tabLabels = { formations:'Formations', assets:'Assets', ships:'Ships', structures:'Structures', misc:'Misc Items', apprentices:'Apprentices', notables:'Notables', population:'Population', artifacts:'Artifacts' };
 
   return `
   <div class="tab-bar">
@@ -1783,6 +1783,7 @@ function renderAssets() {
   ${assetsTab==='apprentices' ? renderApprentices() : ''}
   ${assetsTab==='notables' ? renderNotables() : ''}
   ${assetsTab==='population' ? renderPopulation() : ''}
+  ${assetsTab==='artifacts' ? renderArtifactsTab() : ''}
   `;
 }
 
@@ -2806,6 +2807,78 @@ function renderPopulation() {
         <tbody>${rows}</tbody>
       </table>
     </div>
+  </div>`;
+}
+
+function renderArtifactsTab() {
+  const p = STATE.players[currentPlayer];
+  if(!p) return '<div class="card">No player data.</div>';
+  const arts = p.artifacts||[];
+  if(!arts.length) return `<div class="card"><div class="card-title">Artifact Collection</div><div class="dim" style="padding:12px">No artifacts in collection.</div></div>`;
+
+  // Build usage map: artifactId -> [{holder, qty, type}]
+  const usage = {};
+  arts.forEach(a => { usage[a.id] = []; });
+  const charName = p.character.name || 'Character';
+  (p.character.artifactRefs||[]).forEach(ref => {
+    if(usage[ref.artifactId]) usage[ref.artifactId].push({ holder: charName, qty: ref.qty||1, type:'character' });
+  });
+  (p.apprentices||[]).forEach(appr => {
+    (appr.artifactRefs||[]).forEach(ref => {
+      if(usage[ref.artifactId]) usage[ref.artifactId].push({ holder: appr.name||'Apprentice', qty: ref.qty||1, type:'apprentice' });
+    });
+  });
+
+  let totalOwned=0, totalAssigned=0;
+  const enriched = arts.map(a => {
+    const holders = usage[a.id]||[];
+    const assigned = holders.reduce((s,h)=>s+h.qty, 0);
+    totalOwned += (a.number||0);
+    totalAssigned += assigned;
+    return {...a, _assigned: assigned, _remaining: Math.max(0,(a.number||0)-assigned), _over: Math.max(0,assigned-(a.number||0)), _holders: holders};
+  });
+  const totalRemaining = totalOwned - totalAssigned;
+
+  const tid = 'artifactsTab';
+  const rows = _sortData(enriched, tid).map(a => {
+    const qClass = a.quality==='Grand'?'tag-red':a.quality==='Major'?'tag-gold':a.quality==='Normal'?'tag-blue':'tag-grey';
+    const remStyle = a._over>0 ? 'color:var(--red2);font-weight:700' : a._remaining===0 ? 'color:var(--text2)' : 'color:var(--green);font-weight:600';
+    return `<tr>
+      <td>
+        <div style="font-weight:600;color:var(--gold)">${esc(a.name)}</div>
+        ${a._holders.length?`<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">
+          ${a._holders.map(h=>`<span class="tag ${h.type==='character'?'tag-gold':'tag-blue'}" style="font-size:10px">
+            ${esc(h.holder)}${h.qty>1?' · '+h.qty+'x':''}
+          </span>`).join('')}
+        </div>`:``}
+      </td>
+      <td><span class="tag ${qClass}" style="font-size:10px">${esc(a.quality||'—')}</span></td>
+      <td class="dim" style="max-width:200px;font-size:12px">${esc(a.description||'')}</td>
+      <td class="td-num">${a.number||0}</td>
+      <td class="td-num">${a._assigned||0}</td>
+      <td class="td-num" style="${remStyle}">${a._over>0?'−'+a._over+' over':a._remaining}</td>
+    </tr>`;
+  }).join('');
+
+  return `
+  <div class="grid3" style="margin-bottom:16px">
+    <div class="stat-box"><div class="label">Total Owned</div><div class="value">${totalOwned}</div></div>
+    <div class="stat-box"><div class="label">Total Assigned</div><div class="value">${totalAssigned}</div></div>
+    <div class="stat-box"><div class="label">Unassigned</div><div class="value ${totalRemaining<0?'neg':totalRemaining===0?'':' pos'}">${Math.max(0,totalRemaining)}</div></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Artifact Collection <span class="tag tag-grey">${arts.length}</span></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr>
+        ${_th(tid,'name','Artifact')}
+        ${_th(tid,'quality','Quality')}
+        <th>Description</th>
+        ${_th(tid,'number','Owned','class="td-num"')}
+        ${_th(tid,'_assigned','Assigned','class="td-num"')}
+        ${_th(tid,'_remaining','Remaining','class="td-num"')}
+      </tr></thead>
+      <tbody>${rows||`<tr class="empty-row"><td colspan="6">No artifacts.</td></tr>`}</tbody>
+    </table></div>
   </div>`;
 }
 

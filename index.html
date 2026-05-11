@@ -1523,7 +1523,45 @@ function renderCharacter() {
   ${renderNotablesSection(p)}
   ${renderArtifactsSection(p)}
   ${renderFactionSection(p)}
+  ${renderQueuedDeployments(p)}
   `;
+}
+
+function renderQueuedDeployments(p) {
+  const reqs = (STATE.deploymentRequests||[]).filter(r=>r.playerId===p.id && r.status==='pending');
+  if(!reqs.length) return '';
+  return `<div class="card">
+    <div class="card-title" style="display:flex;align-items:center;gap:8px">
+      Pending Deployment Requests
+      <span class="tag tag-gold" style="font-size:11px">${reqs.length} awaiting approval</span>
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr>
+        <th>Unit</th><th>Proposed Deployment</th><th>Note</th><th>Submitted</th><th></th>
+      </tr></thead>
+      <tbody>
+        ${reqs.map(r=>{
+          const proposed = (r.proposedDeployments||[]).map(d=>`${d.qty}× ${d.location||'?'}${d.note?' ('+d.note+')':''}`).join(', ') || 'None';
+          const dt = r.date ? new Date(r.date).toLocaleDateString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
+          return `<tr>
+            <td class="gold">${esc(r.itemName)}</td>
+            <td style="font-size:12px">${esc(proposed)}</td>
+            <td class="dim" style="font-size:12px">${esc(r.note||'—')}</td>
+            <td class="dim" style="font-size:12px;white-space:nowrap">${dt}</td>
+            <td><button class="btn btn-red btn-sm" onclick="cancelDeployRequest('${r.id}')">✕ Cancel</button></td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table></div>
+  </div>`;
+}
+function cancelDeployRequest(reqId) {
+  const idx = (STATE.deploymentRequests||[]).findIndex(r=>r.id===reqId);
+  if(idx < 0) return;
+  STATE.deploymentRequests.splice(idx, 1);
+  saveState();
+  notify('Deployment request cancelled.');
+  render();
 }
 
 function renderFactionSection(p) {
@@ -1746,6 +1784,46 @@ function renderAssets() {
 // ============================================================
 let _deployedOpen = {};
 let _deployedSubOpen = {};
+let _deployProspective = false;
+let _prospDiff = null; // per-world diff when prospective mode is on
+
+function _toggleProspective() { _deployProspective = !_deployProspective; render(); }
+
+function _applyPendingToPlayer(p) {
+  const copy = JSON.parse(JSON.stringify(p));
+  (STATE.deploymentRequests||[]).filter(r=>r.playerId===p.id&&r.status==='pending').forEach(req=>{
+    const item=(copy[req.listKey]||[]).find(x=>x.id===req.itemId);
+    if(!item) return;
+    item.deployments = JSON.parse(JSON.stringify(req.proposedDeployments||[]));
+    if(req.proposedUndeployed!==undefined) item.undeployed = req.proposedUndeployed;
+  });
+  return copy;
+}
+
+function _diffDeployTrees(curTree, proTree) {
+  const allWorlds = new Set([...Object.keys(curTree),...Object.keys(proTree)]);
+  const result = {};
+  allWorlds.forEach(world=>{
+    const cur = curTree[world]||{ships:{},persons:{},generic:[]};
+    const pro = proTree[world]||{ships:{},persons:{},generic:[]};
+    const d = { isNewWorld:!curTree[world], isRemovedWorld:!proTree[world],
+      addedShips:[],removedShips:[],changedShips:[],
+      addedPersons:[],removedPersons:[],changedPersons:[],
+      addedGeneric:[],removedGeneric:[],changedGeneric:[],
+      removedShipData:{}, removedPersonData:{} };
+    Object.keys(pro.ships||{}).forEach(n=>{ if(!(n in (cur.ships||{}))) d.addedShips.push(n); else if(Number((cur.ships[n]||{}).qty)!==Number((pro.ships[n]||{}).qty)) d.changedShips.push(n); });
+    Object.keys(cur.ships||{}).forEach(n=>{ if(!(n in (pro.ships||{}))){ d.removedShips.push(n); d.removedShipData[n]=cur.ships[n]; } });
+    Object.keys(pro.persons||{}).forEach(n=>{ if(!(n in (cur.persons||{}))) d.addedPersons.push(n); else if(Number((cur.persons[n]||{}).qty)!==Number((pro.persons[n]||{}).qty)) d.changedPersons.push(n); });
+    Object.keys(cur.persons||{}).forEach(n=>{ if(!(n in (pro.persons||{}))){ d.removedPersons.push(n); d.removedPersonData[n]=cur.persons[n]; } });
+    const cG={}, pG={};
+    (cur.generic||[]).forEach(e=>{cG[e.name]=e;});
+    (pro.generic||[]).forEach(e=>{pG[e.name]=e;});
+    (pro.generic||[]).forEach(e=>{ if(!cG[e.name]) d.addedGeneric.push(e.name); else if(Number(cG[e.name].qty)!==Number(e.qty)) d.changedGeneric.push(e.name); });
+    (cur.generic||[]).forEach(e=>{ if(!pG[e.name]) d.removedGeneric.push(e.name); });
+    result[world] = d;
+  });
+  return result;
+}
 
 function _buildLocationTree(p) {
   // tree: { worldName: { structures:{}, ships:{}, persons:{}, generic:[] } }
@@ -1822,7 +1900,7 @@ function _buildLocationTree(p) {
       (item.deployments||[]).forEach(d => {
         if(!(Number(d.qty)>0)) return;
         const loc = (d.location||'').trim();
-        const entry = { type, name:item.name, qty:d.qty, category:item.category||'', note:d.note||'', misc:item.misc||'', strength:item.strength||'' };
+        const entry = { type, name:item.name, qty:d.qty, category:item.category||'', note:d.note||'', misc:item.misc||'', strength:item.strength||'', listKey:key, itemId:item.id };
         if(structIndex[loc]!==undefined) {
           const world = structIndex[loc];
           ensureWorld(world);
@@ -1888,16 +1966,28 @@ function _renderSubSection(world, label, forces, structObj) {
       </div>`;
     }
     if(forces.length) {
-      const rows = forces.map(e=>`<tr>
-        <td class="gold">${esc(e.name)}</td>
-        <td><span class="tag ${e.type==='Formation'?'tag-red':e.type==='Asset'?'tag-grey':'tag-blue'}">${e.type}</span></td>
-        <td>${e.qty}</td>
-        <td class="dim">${fmtStr(e.strength,e.qty)}</td>
-        <td class="dim">${esc(e.category)}</td>
-        <td class="dim">${e.note?`<em>${esc(e.note)}</em>`:'—'}</td>
-      </tr>`).join('');
+      const rows = forces.map(e=>{
+        const dt = e._diffTag;
+        const rowBg = dt==='added'?'rgba(46,204,113,0.10)':dt==='removed'?'rgba(231,76,60,0.10)':dt==='changed'?'rgba(241,196,15,0.08)':'';
+        const badge = dt?`<span class="tag ${dt==='added'?'tag-green':dt==='removed'?'tag-red':'tag-gold'}" style="font-size:9px;margin-left:4px;vertical-align:middle">${dt==='added'?'+':dt==='removed'?'−':'~'}</span>`:'';
+        const hasPending = e.itemId && pendingDepRequest(e.listKey, e.itemId);
+        const reposCtrl = e.itemId
+          ? (hasPending
+              ? `<span class="tag tag-gold" style="font-size:10px">⏳ Pending</span>`
+              : `<button class="btn btn-ghost btn-sm" onclick="showDeployModal('${e.listKey}','${e.itemId}')">↺ Reposition</button>`)
+          : '';
+        return `<tr${rowBg?` style="background:${rowBg}"`:''}">
+          <td class="gold" style="${dt==='removed'?'text-decoration:line-through;opacity:0.7':''}">${esc(e.name)}${badge}</td>
+          <td><span class="tag ${e.type==='Formation'?'tag-red':e.type==='Asset'?'tag-grey':'tag-blue'}">${e.type}</span></td>
+          <td>${e.qty}</td>
+          <td class="dim">${fmtStr(e.strength,e.qty)}</td>
+          <td class="dim">${esc(e.category)}</td>
+          <td class="dim">${e.note?`<em>${esc(e.note)}</em>`:'—'}</td>
+          <td style="white-space:nowrap">${reposCtrl}</td>
+        </tr>`;
+      }).join('');
       body += `<div class="tbl-wrap"><table>
-        <thead><tr><th>Name</th><th>Type</th><th>Qty</th><th>Strength</th><th>Category</th><th>Note</th></tr></thead>
+        <thead><tr><th>Name</th><th>Type</th><th>Qty</th><th>Strength</th><th>Category</th><th>Note</th><th></th></tr></thead>
         <tbody>${rows}</tbody>
       </table></div>`;
     } else {
@@ -1922,7 +2012,7 @@ function _renderSubSection(world, label, forces, structObj) {
   </div>`;
 }
 
-function _renderShipSection(world, shipName, shipData) {
+function _renderShipSection(world, shipName, shipData, diffTag) {
   const k = world+'::ship::'+shipName;
   const open = !!_deployedSubOpen[k];
   const s = shipData.obj;
@@ -1931,11 +2021,13 @@ function _renderShipSection(world, shipName, shipData) {
   const typeColor = { Formation:'tag-red', Asset:'tag-grey', Misc:'tag-blue' };
   let body = '';
   if(open) {
+    const _shipPending = pendingDepRequest('ships', s.id);
     body += `<div class="struct-info">
       <span style="color:var(--gold);font-weight:600">🚀 ${esc(shipName)}</span>
       ${s.class?`  <span class="tag tag-blue" style="font-size:10px">${esc(s.class)}</span>`:''}
       ${s.role?`  <span class="tag tag-grey" style="font-size:10px">${esc(s.role)}</span>`:''}
       ${s.quantity>1?`  <span class="dim" style="font-size:11px">×${s.quantity} ships</span>`:''}
+      ${_shipPending?`<span class="tag tag-gold" style="font-size:10px;margin-left:6px">⏳ Redeployment pending</span>`:s.id?`<button class="btn btn-ghost btn-sm" style="margin-left:6px" onclick="showDeployModal('ships','${s.id}')">↺ Reposition</button>`:''}
       ${s.description?`<div class="dim" style="margin-top:4px;font-size:12px">${esc(s.description)}</div>`:''}
       ${s.specifications?`<div style="margin-top:3px;font-size:11px;color:var(--text2)">${esc(s.specifications)}</div>`:''}
     </div>`;
@@ -1964,16 +2056,19 @@ function _renderShipSection(world, shipName, shipData) {
     totalStrength>0?`${totalStrength.toLocaleString()} men`:null,
     s.class||null
   ].filter(Boolean).join(' · ');
-  return `<div class="subloc-row" style="border-color:var(--deploy-ship-border)">
-    <div class="subloc-hdr" style="border-left:3px solid var(--deploy-ship-color);background:var(--deploy-ship-bg)" onclick="_deploySubToggle('${wEsc}','${kEsc}')">
-      <span class="subloc-name" style="font-size:15px;color:var(--deploy-ship-color)">🚀 ${esc(shipName)}</span>
+  const _dColor = diffTag==='added'?'#2ecc71':diffTag==='removed'?'#e74c3c':diffTag==='changed'?'#f1c40f':null;
+  const _dBg    = diffTag==='added'?'rgba(46,204,113,0.08)':diffTag==='removed'?'rgba(231,76,60,0.08)':diffTag==='changed'?'rgba(241,196,15,0.08)':null;
+  const _dBadge = diffTag?`<span class="tag ${diffTag==='added'?'tag-green':diffTag==='removed'?'tag-red':'tag-gold'}" style="font-size:9px;margin-left:6px">${diffTag==='added'?'+ Added':diffTag==='removed'?'− Removed':'~ Changed'}</span>`:'';
+  return `<div class="subloc-row" style="border-color:${_dColor||'var(--deploy-ship-border)'};${diffTag==='removed'?'opacity:0.7;':''}">
+    <div class="subloc-hdr" style="border-left:3px solid ${_dColor||'var(--deploy-ship-color)'};background:${_dBg||'var(--deploy-ship-bg)'}" onclick="_deploySubToggle('${wEsc}','${kEsc}')">
+      <span class="subloc-name" style="font-size:15px;color:${_dColor||'var(--deploy-ship-color)'}">🚀 ${esc(shipName)}${_dBadge}</span>
       <span class="subloc-meta">${meta} ${open?'▲':'▼'}</span>
     </div>
     ${open?`<div class="subloc-body">${body}</div>`:''}
   </div>`;
 }
 
-function _renderPersonSection(world, personName, personData) {
+function _renderPersonSection(world, personName, personData, diffTag) {
   const k = world+'::person::'+personName;
   const open = !!_deployedSubOpen[k];
   const person = personData.obj;
@@ -1983,18 +2078,26 @@ function _renderPersonSection(world, personName, personData) {
   const isAppr = personData.type==='apprentice';
   const icon = isAppr ? '⚡' : '👤';
 
-  const accentColor = isAppr ? 'var(--deploy-appr-color)' : 'var(--gold)';
-  const accentBg    = isAppr ? 'var(--deploy-appr-bg)'    : 'rgba(212,175,55,0.08)';
-  const accentBorder= isAppr ? 'var(--deploy-appr-border)': 'rgba(212,175,55,0.45)';
+  const _dColor  = diffTag==='added'?'#2ecc71':diffTag==='removed'?'#e74c3c':diffTag==='changed'?'#f1c40f':null;
+  const _dBg     = diffTag==='added'?'rgba(46,204,113,0.08)':diffTag==='removed'?'rgba(231,76,60,0.08)':diffTag==='changed'?'rgba(241,196,15,0.08)':null;
+  const _dBorder = diffTag==='added'?'rgba(46,204,113,0.6)':diffTag==='removed'?'rgba(231,76,60,0.6)':diffTag==='changed'?'rgba(241,196,15,0.6)':null;
+  const _dBadge  = diffTag?`<span class="tag ${diffTag==='added'?'tag-green':diffTag==='removed'?'tag-red':'tag-gold'}" style="font-size:9px;margin-left:6px">${diffTag==='added'?'+ Added':diffTag==='removed'?'− Removed':'~ Changed'}</span>`:'';
+
+  const accentColor  = _dColor  || (isAppr ? 'var(--deploy-appr-color)' : 'var(--gold)');
+  const accentBg     = _dBg     || (isAppr ? 'var(--deploy-appr-bg)'    : 'rgba(212,175,55,0.08)');
+  const accentBorder = _dBorder || (isAppr ? 'var(--deploy-appr-border)': 'rgba(212,175,55,0.45)');
 
   const nestedShipNames = Object.keys(personData.ships||{});
   let body = '';
   if(open) {
+    const _personLK = isAppr ? 'apprentices' : 'notables';
+    const _personPending = person.id && pendingDepRequest(_personLK, person.id);
     body += `<div class="struct-info">
       <span style="color:${accentColor};font-weight:600">${esc(personName)}</span>
       ${isAppr&&person.rank?`<span class="tag tag-red" style="font-size:10px">${esc(person.rank)}</span>`:''}
       ${!isAppr&&person.role?`<span class="tag tag-blue" style="font-size:10px">${esc(person.role)}</span>`:''}
       ${person.species?`<span class="tag tag-grey" style="font-size:10px">${esc(person.species)}</span>`:''}
+      ${_personPending?`<span class="tag tag-gold" style="font-size:10px;margin-left:6px">⏳ Redeployment pending</span>`:person.id?`<button class="btn btn-ghost btn-sm" style="margin-left:6px" onclick="showDeployModal('${_personLK}','${person.id}')">↺ Reposition</button>`:''}
       ${personData.note?`<em style="font-size:11px;color:var(--text2)">${esc(personData.note)}</em>`:''}
       ${person.description?`<div class="dim" style="margin-top:4px;font-size:12px">${esc(person.description)}</div>`:''}
     </div>`;
@@ -2030,9 +2133,9 @@ function _renderPersonSection(world, personName, personData) {
     isAppr ? (person.rank||'Apprentice') : (person.role||'Notable'),
   ].filter(Boolean).join(' · ');
 
-  return `<div class="subloc-row" style="border-color:${accentBorder}">
+  return `<div class="subloc-row" style="border-color:${accentBorder};${diffTag==='removed'?'opacity:0.7;':''}">
     <div class="subloc-hdr" style="border-left:3px solid ${accentColor};background:${accentBg}" onclick="_deploySubToggle('${wEsc}','${kEsc}')">
-      <span class="subloc-name" style="font-size:15px;color:${accentColor}">${icon} ${esc(personName)}</span>
+      <span class="subloc-name" style="font-size:15px;color:${accentColor}">${icon} ${esc(personName)}${_dBadge}</span>
       <span class="subloc-meta">${meta} ${open?'▲':'▼'}</span>
     </div>
     ${open?`<div class="subloc-body">${body}</div>`:''}
@@ -2042,58 +2145,106 @@ function _renderPersonSection(world, personName, personData) {
 function renderDeployed() {
   const p = STATE.players[currentPlayer];
   if(!p) return '';
-  const tree = _buildLocationTree(p);
-  const worlds = Object.keys(tree).sort((a,b)=>{
+  const pendingReqs = (STATE.deploymentRequests||[]).filter(r=>r.playerId===currentPlayer&&r.status==='pending');
+
+  let tree, curTree;
+  if(_deployProspective) {
+    curTree    = _buildLocationTree(p);
+    tree       = _buildLocationTree(_applyPendingToPlayer(p));
+    _prospDiff = _diffDeployTrees(curTree, tree);
+  } else {
+    tree = _buildLocationTree(p);
+    _prospDiff = null; curTree = null;
+  }
+
+  const worldSet = new Set(Object.keys(tree));
+  if(_prospDiff) Object.entries(_prospDiff).forEach(([w,d])=>{ if(d.isRemovedWorld) worldSet.add(w); });
+  const worlds = [...worldSet].sort((a,b)=>{
     if(a==='Unassigned'||a==='Unknown') return 1;
     if(b==='Unassigned'||b==='Unknown') return -1;
     return a.localeCompare(b);
   });
 
-  if(!worlds.length) return `<div class="card"><div class="dim" style="padding:24px;text-align:center">No deployed forces or structures.</div></div>`;
+  const legend = _deployProspective ? `
+    <span style="display:flex;align-items:center;gap:12px;font-size:11px;color:var(--text2)">
+      <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:#2ecc71;margin-right:3px;vertical-align:middle"></span>Added</span>
+      <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:#e74c3c;margin-right:3px;vertical-align:middle"></span>Removed</span>
+      <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:#f1c40f;margin-right:3px;vertical-align:middle"></span>Changed</span>
+    </span>` : '';
 
-  return worlds.map(world => {
-    const wd = tree[world];
-    const open = !!_deployedOpen[world];
-    const structNames  = Object.keys(wd.structures);
-    const shipNames    = Object.keys(wd.ships||{});
-    const personNames  = Object.keys(wd.persons||{});
+  const toggleBar = `<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+    <button class="btn ${_deployProspective?'btn-gold':'btn-ghost'}" onclick="_toggleProspective()">👁 ${_deployProspective?'Prospective: ON':'Show Prospective'}</button>
+    ${pendingReqs.length?`<span class="dim" style="font-size:12px">${pendingReqs.length} pending request${pendingReqs.length!==1?'s':''}</span>`:''}
+    ${legend}
+  </div>`;
+
+  if(!worlds.length) return toggleBar+`<div class="card"><div class="dim" style="padding:24px;text-align:center">No deployed forces or structures.</div></div>`;
+
+  return toggleBar + worlds.map(world=>{
+    const proWd = tree[world]||{structures:{},ships:{},persons:{},generic:[]};
+    const curWd = (curTree&&curTree[world])||proWd;
+    const open  = !!_deployedOpen[world];
+    const wd    = proWd;
+    const worldDiff = _prospDiff ? (_prospDiff[world]||null) : null;
+
+    const structNames    = Object.keys(wd.structures||{});
+    const proShipNames   = Object.keys(proWd.ships||{});
+    const proPersonNames = Object.keys(proWd.persons||{});
+    const removedShips   = worldDiff ? worldDiff.removedShips   : [];
+    const removedPersons = worldDiff ? worldDiff.removedPersons : [];
+    const allShipNames   = [...new Set([...proShipNames,   ...removedShips])];
+    const allPersonNames = [...new Set([...proPersonNames, ...removedPersons])];
+
     const allForces = [
       ...wd.generic,
-      ...structNames.flatMap(n=>wd.structures[n].forces),
-      ...shipNames.flatMap(n=>(wd.ships[n].forces||[])),
-      ...personNames.flatMap(n=>[
-        ...(wd.persons[n].forces||[]),
-        ...Object.values(wd.persons[n].ships||{}).flatMap(sh=>sh.forces||[])
-      ])
+      ...structNames.flatMap(n=>(wd.structures[n]||{forces:[]}).forces),
+      ...allShipNames.flatMap(n=>{ const sd=proWd.ships[n]||(worldDiff&&worldDiff.removedShipData[n]); return sd?(sd.forces||[]):[];}),
+      ...allPersonNames.flatMap(n=>{ const pd=proWd.persons[n]||(worldDiff&&worldDiff.removedPersonData[n]); return pd?[...(pd.forces||[]),...Object.values(pd.ships||{}).flatMap(sh=>sh.forces||[])]:[];})
     ];
     const totalUnits = allForces.reduce((s,e)=>s+Number(e.qty),0)
-      + shipNames.reduce((s,n)=>s+Number(wd.ships[n].qty||0),0)
-      + personNames.reduce((s,n)=>{
-          const pd = wd.persons[n];
-          return s + Number(pd.qty||0) + Object.values(pd.ships||{}).reduce((ss,sh)=>ss+Number(sh.qty||0),0);
-        },0);
+      + allShipNames.reduce((s,n)=>{ const sd=proWd.ships[n]||(worldDiff&&worldDiff.removedShipData[n]); return s+Number((sd||{}).qty||0); },0)
+      + allPersonNames.reduce((s,n)=>{ const pd=proWd.persons[n]||(worldDiff&&worldDiff.removedPersonData[n]); if(!pd)return s; return s+Number(pd.qty||0)+Object.values(pd.ships||{}).reduce((ss,sh)=>ss+Number(sh.qty||0),0); },0);
     const totalStrength = depStrength(allForces);
 
     let body = '';
     if(open) {
-      if(wd.generic.length) body += _renderSubSection(world,'Generic',wd.generic,null);
-      structNames.forEach(n=>{ body += _renderSubSection(world,n,wd.structures[n].forces,wd.structures[n].obj); });
-      shipNames.forEach(n=>{ body += _renderShipSection(world,n,wd.ships[n]); });
-      personNames.forEach(n=>{ body += _renderPersonSection(world,n,wd.persons[n]); });
+      const allGeneric = [
+        ...(wd.generic||[]).map(e=>({...e, _diffTag:worldDiff?(worldDiff.addedGeneric.includes(e.name)?'added':worldDiff.changedGeneric.includes(e.name)?'changed':null):null})),
+        ...(worldDiff?worldDiff.removedGeneric.map(nm=>{ const e=(curWd.generic||[]).find(g=>g.name===nm)||{name:nm,type:'?',qty:0,category:'',note:'',strength:''}; return{...e,_diffTag:'removed'}; }):[])
+      ];
+      if(allGeneric.length) body += _renderSubSection(world,'Generic',allGeneric,null);
+      structNames.forEach(n=>{ body += _renderSubSection(world,n,(wd.structures[n]||{forces:[]}).forces,(wd.structures[n]||{}).obj); });
+      allShipNames.forEach(n=>{
+        const sd = proWd.ships[n]||(worldDiff&&worldDiff.removedShipData[n]);
+        const dt = worldDiff?(worldDiff.removedShips.includes(n)?'removed':worldDiff.addedShips.includes(n)?'added':worldDiff.changedShips.includes(n)?'changed':null):null;
+        if(sd) body += _renderShipSection(world,n,sd,dt);
+      });
+      allPersonNames.forEach(n=>{
+        const pd = proWd.persons[n]||(worldDiff&&worldDiff.removedPersonData[n]);
+        const dt = worldDiff?(worldDiff.removedPersons.includes(n)?'removed':worldDiff.addedPersons.includes(n)?'added':worldDiff.changedPersons.includes(n)?'changed':null):null;
+        if(pd) body += _renderPersonSection(world,n,pd,dt);
+      });
     }
 
     const wEsc = world.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    const changeCount = worldDiff?(worldDiff.addedShips.length+worldDiff.removedShips.length+worldDiff.changedShips.length+worldDiff.addedPersons.length+worldDiff.removedPersons.length+worldDiff.changedPersons.length+worldDiff.addedGeneric.length+worldDiff.removedGeneric.length+worldDiff.changedGeneric.length):0;
     const metaParts = [
       totalUnits>0?`${totalUnits} unit${totalUnits!==1?'s':''}`:null,
       totalStrength>0?`${totalStrength.toLocaleString()} men`:null,
       structNames.length?`${structNames.length} structure${structNames.length!==1?'s':''}`:null,
-      shipNames.length?`${shipNames.length} ship${shipNames.length!==1?'s':''}`:null,
-      personNames.length?`${personNames.length} person${personNames.length!==1?'s':''}`:null
-    ].filter(Boolean).join(' · ') || 'Empty';
-    return `<div class="world-card">
+      allShipNames.length?`${allShipNames.length} ship${allShipNames.length!==1?'s':''}`:null,
+      allPersonNames.length?`${allPersonNames.length} person${allPersonNames.length!==1?'s':''}`:null
+    ].filter(Boolean).join(' · ')||'Empty';
+
+    const isNew      = worldDiff&&worldDiff.isNewWorld;
+    const isVacating = worldDiff&&worldDiff.isRemovedWorld;
+    const diffBadge  = changeCount>0?`<span class="tag ${isNew?'tag-green':isVacating?'tag-red':'tag-gold'}" style="font-size:10px;margin-left:6px">${isNew?'New':isVacating?'Vacating':'~'+changeCount+' change'+(changeCount!==1?'s':'')}</span>`:'';
+    const cardStyle  = changeCount>0?`border:1px solid ${isNew?'#2ecc71':isVacating?'#e74c3c':'#f1c40f'};${isVacating?'opacity:0.75;':''}`:isVacating?'opacity:0.75;':'';
+
+    return `<div class="world-card" style="${cardStyle}">
       <div class="world-hdr" onclick="_deployToggle('${wEsc}')">
-        <span style="font-size:16px">📍</span>
-        <span class="world-name">${esc(world)}</span>
+        <span style="font-size:16px">${isVacating?'🚫':'📍'}</span>
+        <span class="world-name">${esc(world)}${diffBadge}</span>
         <span class="world-meta">${metaParts}</span>
         <span class="chevron">${open?'▲':'▼'}</span>
       </div>
@@ -2115,9 +2266,8 @@ function renderFormationsTab(p) {
         <span class="badge-deployed" title="Deployed">${totalDeployed(f)}</span>
         <span class="sep">/</span>
         <span class="badge-undeployed" title="Undeployed">${f.undeployed}</span>
-        <button class="btn btn-ghost btn-sm" onclick="showDeployModal('formations','${f.id}')">Reposition</button>
+        ${pendingDepRequest('formations',f.id)?`<span class="tag tag-gold" style="font-size:10px">⏳ Pending</span>`:`<button class="btn btn-ghost btn-sm" onclick="showDeployModal('formations','${f.id}')">Reposition</button>`}
       </div>
-      ${pendingDepRequest('formations',f.id)?`<div style="margin-top:4px"><span class="tag tag-gold" style="font-size:10px">⏳ Redeployment pending</span></div>`:''}
       ${deploymentSummary(f)}
     </td>
     <td class="dim" style="word-break:break-word">${esc(f.misc)}</td>
@@ -2148,9 +2298,8 @@ function renderAssetsTab(p) {
         <span class="badge-deployed" title="Deployed">${totalDeployed(a)}</span>
         <span class="sep">/</span>
         <span class="badge-undeployed" title="Undeployed">${a.undeployed}</span>
-        <button class="btn btn-ghost btn-sm" onclick="showDeployModal('assets','${a.id}')">Reposition</button>
+        ${pendingDepRequest('assets',a.id)?`<span class="tag tag-gold" style="font-size:10px">⏳ Pending</span>`:`<button class="btn btn-ghost btn-sm" onclick="showDeployModal('assets','${a.id}')">Reposition</button>`}
       </div>
-      ${pendingDepRequest('assets',a.id)?`<div style="margin-top:4px"><span class="tag tag-gold" style="font-size:10px">⏳ Redeployment pending</span></div>`:''}
       ${deploymentSummary(a)}
     </td>
     <td class="dim" style="word-break:break-word">${esc(a.misc)}</td>
@@ -2186,9 +2335,8 @@ function renderShipsTab(p) {
           <span class="badge-deployed" title="Deployed">${totalDeployed(s)}</span>
           <span class="sep">/</span>
           <span class="badge-undeployed" title="Undeployed">${s.undeployed}</span>
-          <button class="btn btn-ghost btn-sm" onclick="showDeployModal('ships','${s.id}')">Reposition</button>
+          ${pendingDepRequest('ships',s.id)?`<span class="tag tag-gold" style="font-size:10px">⏳ Pending</span>`:`<button class="btn btn-ghost btn-sm" onclick="showDeployModal('ships','${s.id}')">Reposition</button>`}
         </div>
-        ${pendingDepRequest('ships',s.id)?`<div style="margin-top:4px"><span class="tag tag-gold" style="font-size:10px">⏳ Redeployment pending</span></div>`:''}
         ${deploymentSummary(s)}
       </td>
       <td class="dim" style="word-break:break-word;font-size:12px">${esc(s.specifications||'')}</td>
@@ -2258,9 +2406,8 @@ function renderMiscTab(p) {
         <span class="badge-deployed" title="Deployed">${totalDeployed(m)}</span>
         <span class="sep">/</span>
         <span class="badge-undeployed" title="Undeployed">${m.undeployed}</span>
-        <button class="btn btn-ghost btn-sm" onclick="showDeployModal('miscItems','${m.id}')">Reposition</button>
+        ${pendingDepRequest('miscItems',m.id)?`<span class="tag tag-gold" style="font-size:10px">⏳ Pending</span>`:`<button class="btn btn-ghost btn-sm" onclick="showDeployModal('miscItems','${m.id}')">Reposition</button>`}
       </div>
-      ${pendingDepRequest('miscItems',m.id)?`<div style="margin-top:4px"><span class="tag tag-gold" style="font-size:10px">⏳ Redeployment pending</span></div>`:''}
       ${deploymentSummary(m)}
     </td>
     <td class="dim" style="word-break:break-word">${esc(m.misc)}</td>
@@ -2692,7 +2839,7 @@ function renderApprentices() {
             ${deployedLocs.length
               ? deployedLocs.map(l=>`<span class="tag tag-grey" style="font-size:11px">${esc(l)}</span>`).join('')
               : `<span class="dim" style="font-size:12px;font-style:italic">Not deployed</span>`}
-            ${a.id?`<button class="btn btn-ghost btn-sm" onclick="showDeployModal('apprentices','${a.id}')">Reposition</button>`:''}
+            ${a.id?(pendingDepRequest('apprentices',a.id)?`<span class="tag tag-gold" style="font-size:10px">⏳ Pending</span>`:`<button class="btn btn-ghost btn-sm" onclick="showDeployModal('apprentices','${a.id}')">Reposition</button>`):''}
           </div>
         </div>
         <div style="width:200px;flex-shrink:0;border-left:1px solid var(--border);padding-left:14px">
@@ -2764,7 +2911,7 @@ function renderNotables() {
             ${deployedLocs.length
               ? deployedLocs.map(l=>`<span class="tag tag-grey" style="font-size:11px">${esc(l)}</span>`).join('')
               : `<span class="dim" style="font-size:12px;font-style:italic">Not deployed</span>`}
-            ${n.id?`<button class="btn btn-ghost btn-sm" onclick="showDeployModal('notables','${n.id}')">Reposition</button>`:''}
+            ${n.id?(pendingDepRequest('notables',n.id)?`<span class="tag tag-gold" style="font-size:10px">⏳ Pending</span>`:`<button class="btn btn-ghost btn-sm" onclick="showDeployModal('notables','${n.id}')">Reposition</button>`):''}
           </div>
         </div>
         <div style="width:200px;flex-shrink:0;border-left:1px solid var(--border);padding-left:14px">

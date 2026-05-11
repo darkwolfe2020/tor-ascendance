@@ -1484,20 +1484,21 @@ function renderCharacter() {
             </div>
           </div>`).join('')}
         </div>`:''}
-        ${(c.artifacts||[]).length?`
+        ${(c.artifactRefs||[]).filter(r=>(p.artifacts||[]).find(a=>a.id===r.artifactId)).length?`
         <div style="${secLabel}">Artifacts</div>
         <div style="display:flex;flex-direction:column;gap:8px">
-          ${(c.artifacts||[]).map(a=>`<div style="display:flex;gap:8px;align-items:flex-start">
+          ${(c.artifactRefs||[]).map(ref=>{const art=(p.artifacts||[]).find(a=>a.id===ref.artifactId);if(!art)return'';return`<div style="display:flex;gap:8px;align-items:flex-start">
             <span style="color:var(--gold);margin-top:2px">◈</span>
             <div>
               <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-                <span style="font-weight:600;font-size:13px">${esc(a.name||'')}</span>
-                ${a.quality?`<span class="tag ${a.quality==='Grand'?'tag-red':a.quality==='Major'?'tag-gold':a.quality==='Normal'?'tag-blue':'tag-grey'}" style="font-size:10px">${esc(a.quality)}</span>`:''}
+                ${(ref.qty||1)>1?`<span style="color:var(--text2);font-size:12px;font-weight:600">${ref.qty}x</span>`:''}
+                <span style="font-weight:600;font-size:13px">${esc(art.name||'')}</span>
+                ${art.quality?`<span class="tag ${art.quality==='Grand'?'tag-red':art.quality==='Major'?'tag-gold':art.quality==='Normal'?'tag-blue':'tag-grey'}" style="font-size:10px">${esc(art.quality)}</span>`:''}
               </div>
-              ${a.description?`<div class="dim" style="font-size:12px;margin-top:2px">${esc(a.description)}</div>`:''}
-              ${a.effects?`<div style="font-size:12px;margin-top:2px">${esc(a.effects)}</div>`:''}
+              ${art.description?`<div class="dim" style="font-size:12px;margin-top:2px">${esc(art.description)}</div>`:''}
+              ${art.effects?`<div style="font-size:12px;margin-top:2px">${esc(art.effects)}</div>`:''}
             </div>
-          </div>`).join('')}
+          </div>`;}).join('')}
         </div>`:''}
         ${c.notes?`<div style="${secLabel}">Notes</div><div class="text-block">${esc(c.notes)}</div>`:''}
       </div>
@@ -2853,19 +2854,20 @@ function renderApprentices() {
           ${equipItems.length
             ? equipItems.map(eq=>`<div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:4px;font-size:12px"><span style="color:var(--gold);margin-top:1px">—</span><span>${esc(eq)}</span></div>`).join('')
             : `<div class="dim" style="font-size:12px;font-style:italic">None</div>`}
-          ${(a.artifacts||[]).length?`
+          ${(a.artifactRefs||[]).filter(r=>(p.artifacts||[]).find(x=>x.id===r.artifactId)).length?`
           <div style="color:var(--text2);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-top:10px;margin-bottom:6px">Artifacts</div>
-          ${(a.artifacts||[]).map(art=>`<div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:6px">
+          ${(a.artifactRefs||[]).map(ref=>{const art=(p.artifacts||[]).find(x=>x.id===ref.artifactId);if(!art)return'';return`<div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:6px">
             <span style="color:var(--gold);margin-top:1px;font-size:11px">◈</span>
             <div>
               <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+                ${(ref.qty||1)>1?`<span style="font-size:11px;color:var(--text2);font-weight:600">${ref.qty}x</span>`:''}
                 <span style="font-size:12px;font-weight:600">${esc(art.name||'')}</span>
                 ${art.quality?`<span class="tag ${art.quality==='Grand'?'tag-red':art.quality==='Major'?'tag-gold':art.quality==='Normal'?'tag-blue':'tag-grey'}" style="font-size:9px">${esc(art.quality)}</span>`:''}
               </div>
               ${art.description?`<div class="dim" style="font-size:11px;margin-top:1px">${esc(art.description)}</div>`:''}
               ${art.effects?`<div style="font-size:11px;margin-top:1px">${esc(art.effects)}</div>`:''}
             </div>
-          </div>`).join('')}`:''}
+          </div>`;}).join('')}`:''}
         </div>
       </div>
       ${renderPersonForces(forces)}
@@ -3314,39 +3316,25 @@ function renderAdminCharacterEdit(p) {
     <div style="border-top:1px solid var(--border);margin-top:12px;padding-top:12px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
         <label style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text2)">Artifacts</label>
-        <button class="btn btn-green btn-sm" type="button" onclick="adminAddCharArtifact('${p.id}')">+ Add Artifact</button>
       </div>
-      <div id="ce-artifacts-list" style="display:flex;flex-direction:column;gap:8px">
-        ${(c.artifacts||[]).map((a,idx)=>`
-        <div style="display:flex;gap:8px;align-items:flex-start;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:8px">
-          <div style="flex:1;display:flex;flex-direction:column;gap:6px">
-            ${(p.artifacts||[]).length?`<div style="display:flex;align-items:center;gap:6px">
-              <label style="font-size:10px;color:var(--text2);white-space:nowrap">From list:</label>
-              <select style="flex:1;font-size:11px" onchange="if(this.value!=='')adminPickCharArtifact('${p.id}',${idx},parseInt(this.value));this.value=''">
-                <option value="">— pick artifact to fill fields —</option>
-                ${(p.artifacts||[]).map((src,ai)=>`<option value="${ai}">${esc(src.name||'Unnamed')}${src.quality?' ('+src.quality+')':''}</option>`).join('')}
-              </select>
-            </div>`:''}
-            <div style="display:grid;grid-template-columns:2fr 1fr 2fr 2fr;gap:6px">
-              <div><label style="font-size:10px;color:var(--text2)">Name</label>
-                <input type="text" id="ce-art-name-${idx}" value="${esc(a.name||'')}" style="width:100%"></div>
-              <div><label style="font-size:10px;color:var(--text2)">Quality</label>
-                <select id="ce-art-quality-${idx}" style="width:100%">
-                  <option value="">—</option>
-                  <option value="Minor"${a.quality==='Minor'?' selected':''}>Minor</option>
-                  <option value="Normal"${a.quality==='Normal'?' selected':''}>Normal</option>
-                  <option value="Major"${a.quality==='Major'?' selected':''}>Major</option>
-                  <option value="Grand"${a.quality==='Grand'?' selected':''}>Grand</option>
-                </select></div>
-              <div><label style="font-size:10px;color:var(--text2)">Description</label>
-                <textarea id="ce-art-desc-${idx}" rows="2" style="width:100%">${esc(a.description||'')}</textarea></div>
-              <div><label style="font-size:10px;color:var(--text2)">Effects</label>
-                <textarea id="ce-art-effects-${idx}" rows="2" style="width:100%">${esc(a.effects||'')}</textarea></div>
-            </div>
-          </div>
-          <button class="btn btn-red btn-sm" style="flex-shrink:0;margin-top:16px" onclick="adminDeleteCharArtifact('${p.id}',${idx})">✕</button>
-        </div>`).join('')}
-        ${!(c.artifacts||[]).length?`<div class="dim" style="font-size:12px;font-style:italic;padding:4px">No artifacts yet.</div>`:''}
+      ${(p.artifacts||[]).length?`
+      <div style="display:flex;gap:6px;margin-bottom:10px;align-items:center">
+        <select id="ce-art-pick-${p.id}" style="flex:1;font-size:12px">
+          <option value="">— assign from artifact collection —</option>
+          ${(p.artifacts||[]).map(a=>`<option value="${esc(a.id)}">${esc(a.name||'Unnamed')} [${esc(a.quality||'—')}] · ${a.number||0} owned</option>`).join('')}
+        </select>
+        <button class="btn btn-green btn-sm" onclick="adminAssignCharArtifact('${p.id}')">+ Assign</button>
+      </div>`:`<div class="dim" style="font-size:12px;margin-bottom:8px;font-style:italic">Add artifacts to this player's collection first.</div>`}
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${(c.artifactRefs||[]).map((ref,idx)=>{const art=(p.artifacts||[]).find(a=>a.id===ref.artifactId);if(!art)return'';return`
+        <div style="display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:6px 10px">
+          <span style="color:var(--gold);font-size:14px">◈</span>
+          <input type="number" value="${ref.qty||1}" min="1" style="width:48px;text-align:center" title="Quantity" onchange="adminUpdateCharArtRef('${p.id}',${idx},+this.value)">
+          <span style="font-size:13px;font-weight:600;flex:1">${esc(art.name)}</span>
+          <span class="tag ${art.quality==='Grand'?'tag-red':art.quality==='Major'?'tag-gold':art.quality==='Normal'?'tag-blue':'tag-grey'}" style="font-size:10px">${esc(art.quality||'—')}</span>
+          <button class="btn btn-red btn-sm" onclick="adminRemoveCharArtifact('${p.id}',${idx})">✕</button>
+        </div>`;}).join('')}
+        ${!(c.artifactRefs||[]).length?`<div class="dim" style="font-size:12px;font-style:italic;padding:4px">No artifacts assigned.</div>`:''}
       </div>
     </div>
     <div class="form-row">
@@ -3470,44 +3458,27 @@ function renderAdminApprenticeEdit(p) {
               </div>`).join('')}
             </div>
             <div style="border-top:1px solid var(--border);padding-top:8px;margin-top:4px">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+              <div style="margin-bottom:6px">
                 <label style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text2)">Artifacts</label>
-                <button class="btn btn-green btn-sm" type="button" onclick="adminAddApprArtifact('${p.id}',${idx})">+ Add</button>
               </div>
+              ${(p.artifacts||[]).length?`
+              <div style="display:flex;gap:6px;margin-bottom:6px;align-items:center">
+                <select id="appr-art-pick-${p.id}-${idx}" style="flex:1;font-size:11px">
+                  <option value="">— assign from artifact collection —</option>
+                  ${(p.artifacts||[]).map(a=>`<option value="${esc(a.id)}">${esc(a.name||'Unnamed')} [${esc(a.quality||'—')}] · ${a.number||0} owned</option>`).join('')}
+                </select>
+                <button class="btn btn-green btn-sm" onclick="adminAssignApprArtifact('${p.id}',${idx})">+ Assign</button>
+              </div>`:`<div class="dim" style="font-size:11px;margin-bottom:6px;font-style:italic">Add artifacts to collection first.</div>`}
               <div style="display:flex;flex-direction:column;gap:4px">
-                ${(row.artifacts||[]).map((art,artIdx)=>`
-                <div style="display:flex;gap:6px;align-items:flex-start;background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:6px">
-                  <div style="flex:1;display:flex;flex-direction:column;gap:4px">
-                    ${(p.artifacts||[]).length?`<div style="display:flex;align-items:center;gap:6px">
-                      <label style="font-size:9px;color:var(--text2);white-space:nowrap">From list:</label>
-                      <select style="flex:1;font-size:11px" onchange="if(this.value!=='')adminPickApprArtifact('${p.id}',${idx},${artIdx},parseInt(this.value));this.value=''">
-                        <option value="">— pick artifact —</option>
-                        ${(p.artifacts||[]).map((src,ai)=>`<option value="${ai}">${esc(src.name||'Unnamed')}${src.quality?' ('+src.quality+')':''}</option>`).join('')}
-                      </select>
-                    </div>`:''}
-                    <div style="display:grid;grid-template-columns:2fr 1fr 2fr 2fr;gap:4px">
-                      <div><label style="font-size:9px;color:var(--text2)">Name</label>
-                        <input type="text" value="${esc(art.name||'')}" style="width:100%;font-size:12px"
-                          onchange="adminUpdateApprArtifact('${p.id}',${idx},${artIdx},'name',this.value)"></div>
-                      <div><label style="font-size:9px;color:var(--text2)">Quality</label>
-                        <select style="width:100%;font-size:12px" onchange="adminUpdateApprArtifact('${p.id}',${idx},${artIdx},'quality',this.value)">
-                          <option value="">—</option>
-                          <option value="Minor"${art.quality==='Minor'?' selected':''}>Minor</option>
-                          <option value="Normal"${art.quality==='Normal'?' selected':''}>Normal</option>
-                          <option value="Major"${art.quality==='Major'?' selected':''}>Major</option>
-                          <option value="Grand"${art.quality==='Grand'?' selected':''}>Grand</option>
-                        </select></div>
-                      <div><label style="font-size:9px;color:var(--text2)">Description</label>
-                        <textarea style="width:100%;font-size:12px" rows="2"
-                          onchange="adminUpdateApprArtifact('${p.id}',${idx},${artIdx},'description',this.value)">${esc(art.description||'')}</textarea></div>
-                      <div><label style="font-size:9px;color:var(--text2)">Effects</label>
-                        <textarea style="width:100%;font-size:12px" rows="2"
-                          onchange="adminUpdateApprArtifact('${p.id}',${idx},${artIdx},'effects',this.value)">${esc(art.effects||'')}</textarea></div>
-                    </div>
-                  </div>
-                  <button class="btn btn-red btn-sm" style="flex-shrink:0" onclick="adminDeleteApprArtifact('${p.id}',${idx},${artIdx})">✕</button>
-                </div>`).join('')}
-                ${!(row.artifacts||[]).length?`<div class="dim" style="font-size:11px;font-style:italic;padding:2px">No artifacts.</div>`:''}
+                ${(row.artifactRefs||[]).map((ref,refIdx)=>{const art=(p.artifacts||[]).find(a=>a.id===ref.artifactId);if(!art)return'';return`
+                <div style="display:flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:5px 8px">
+                  <span style="color:var(--gold);font-size:13px">◈</span>
+                  <input type="number" value="${ref.qty||1}" min="1" style="width:42px;text-align:center;font-size:12px" onchange="adminUpdateApprArtRef('${p.id}',${idx},${refIdx},+this.value)">
+                  <span style="font-size:12px;font-weight:600;flex:1">${esc(art.name)}</span>
+                  <span class="tag ${art.quality==='Grand'?'tag-red':art.quality==='Major'?'tag-gold':art.quality==='Normal'?'tag-blue':'tag-grey'}" style="font-size:9px">${esc(art.quality||'—')}</span>
+                  <button class="btn btn-red btn-sm" onclick="adminRemoveApprArtifact('${p.id}',${idx},${refIdx})">✕</button>
+                </div>`;}).join('')}
+                ${!(row.artifactRefs||[]).length?`<div class="dim" style="font-size:11px;font-style:italic;padding:2px">No artifacts assigned.</div>`:''}
               </div>
             </div>
           </div>
@@ -3555,25 +3526,28 @@ function renderAdminNotablesEdit(p) {
     </div>
   </div>`;
 }
-function adminAddApprArtifact(pid, apprIdx) {
+function adminAssignApprArtifact(pid, apprIdx) {
   const p = STATE.players[pid];
   if(!p) return;
-  p.apprentices[apprIdx].artifacts = p.apprentices[apprIdx].artifacts||[];
-  p.apprentices[apprIdx].artifacts.push({ name:'', quality:'', description:'', effects:'' });
+  const sel = document.getElementById(`appr-art-pick-${pid}-${apprIdx}`);
+  if(!sel||!sel.value) return;
+  const artifactId = sel.value;
+  p.apprentices[apprIdx].artifactRefs = p.apprentices[apprIdx].artifactRefs||[];
+  if(p.apprentices[apprIdx].artifactRefs.find(r=>r.artifactId===artifactId)) return;
+  p.apprentices[apprIdx].artifactRefs.push({ artifactId, qty:1 });
   saveState(); render();
 }
-function adminDeleteApprArtifact(pid, apprIdx, artIdx) {
+function adminRemoveApprArtifact(pid, apprIdx, refIdx) {
   const p = STATE.players[pid];
   if(!p) return;
-  (p.apprentices[apprIdx].artifacts||[]).splice(artIdx, 1);
+  (p.apprentices[apprIdx].artifactRefs||[]).splice(refIdx, 1);
   saveState(); render();
 }
-function adminUpdateApprArtifact(pid, apprIdx, artIdx, field, value) {
+function adminUpdateApprArtRef(pid, apprIdx, refIdx, qty) {
   const p = STATE.players[pid];
   if(!p) return;
-  p.apprentices[apprIdx].artifacts = p.apprentices[apprIdx].artifacts||[];
-  if(p.apprentices[apprIdx].artifacts[artIdx])
-    p.apprentices[apprIdx].artifacts[artIdx][field] = value;
+  const refs = p.apprentices[apprIdx].artifactRefs||[];
+  if(refs[refIdx]) refs[refIdx].qty = Math.max(1, qty||1);
   saveState();
 }
 function adminAddNotable(pid) {
@@ -3609,63 +3583,29 @@ function _flushCharSkills(pid) {
     if(d) p.character.skills[idx].description = d.value;
   });
 }
-function adminAddCharArtifact(pid) {
+function adminAssignCharArtifact(pid) {
   const p = STATE.players[pid];
   if(!p) return;
-  _flushCharArtifacts(pid);
-  p.character.artifacts = p.character.artifacts||[];
-  p.character.artifacts.push({ name:'', quality:'', description:'', effects:'' });
+  const sel = document.getElementById('ce-art-pick-'+pid);
+  if(!sel||!sel.value) return;
+  const artifactId = sel.value;
+  p.character.artifactRefs = p.character.artifactRefs||[];
+  if(p.character.artifactRefs.find(r=>r.artifactId===artifactId)) return;
+  p.character.artifactRefs.push({ artifactId, qty:1 });
   saveState(); render();
 }
-function adminDeleteCharArtifact(pid, idx) {
+function adminRemoveCharArtifact(pid, idx) {
   const p = STATE.players[pid];
   if(!p) return;
-  _flushCharArtifacts(pid);
-  (p.character.artifacts||[]).splice(idx, 1);
+  (p.character.artifactRefs||[]).splice(idx, 1);
   saveState(); render();
 }
-function _flushCharArtifacts(pid) {
+function adminUpdateCharArtRef(pid, idx, qty) {
   const p = STATE.players[pid];
   if(!p) return;
-  (p.character.artifacts||[]).forEach((_,idx) => {
-    const n  = document.getElementById('ce-art-name-'+idx);
-    const q  = document.getElementById('ce-art-quality-'+idx);
-    const d  = document.getElementById('ce-art-desc-'+idx);
-    const fx = document.getElementById('ce-art-effects-'+idx);
-    if(n)  p.character.artifacts[idx].name        = n.value;
-    if(q)  p.character.artifacts[idx].quality     = q.value;
-    if(d)  p.character.artifacts[idx].description = d.value;
-    if(fx) p.character.artifacts[idx].effects     = fx.value;
-  });
-}
-function adminPickCharArtifact(pid, charArtIdx, artListIdx) {
-  const p = STATE.players[pid];
-  if(!p) return;
-  const src = (p.artifacts||[])[artListIdx];
-  if(!src) return;
-  _flushCharArtifacts(pid);
-  p.character.artifacts = p.character.artifacts||[];
-  if(p.character.artifacts[charArtIdx]) {
-    Object.assign(p.character.artifacts[charArtIdx], {
-      name: src.name||'', quality: src.quality||'',
-      description: src.description||'', effects: src.effects||''
-    });
-  }
-  saveState(); render();
-}
-function adminPickApprArtifact(pid, apprIdx, artIdx, artListIdx) {
-  const p = STATE.players[pid];
-  if(!p) return;
-  const src = (p.artifacts||[])[artListIdx];
-  if(!src) return;
-  p.apprentices[apprIdx].artifacts = p.apprentices[apprIdx].artifacts||[];
-  if(p.apprentices[apprIdx].artifacts[artIdx]) {
-    Object.assign(p.apprentices[apprIdx].artifacts[artIdx], {
-      name: src.name||'', quality: src.quality||'',
-      description: src.description||'', effects: src.effects||''
-    });
-  }
-  saveState(); render();
+  const refs = p.character.artifactRefs||[];
+  if(refs[idx]) refs[idx].qty = Math.max(1, qty||1);
+  saveState();
 }
 function saveAdminCharacter(pid) {
   const p = STATE.players[pid];
@@ -3675,7 +3615,6 @@ function saveAdminCharacter(pid) {
   const equip = document.getElementById('ce-equipment');
   if(equip) p.character.equipment = equip.value.split('\n').map(s=>s.trim()).filter(Boolean);
   _flushCharSkills(pid);
-  _flushCharArtifacts(pid);
   saveState(); notify('Character saved.'); render();
 }
 

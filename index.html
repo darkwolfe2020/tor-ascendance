@@ -72,6 +72,8 @@
   th { background: var(--bg3); color: var(--text2); font-weight: 600; text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
   td { padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
   tr:hover td { background: rgba(255,255,255,0.03); }
+  .compact-tbl th { padding: 4px 7px; }
+  .compact-tbl td { padding: 3px 7px; vertical-align: middle; }
   .td-num { text-align: right; font-variant-numeric: tabular-nums; }
   .pos { color: var(--green); }
   .neg { color: var(--red2); }
@@ -3317,21 +3319,30 @@ function renderAdminCharacterEdit(p) {
       <div id="ce-artifacts-list" style="display:flex;flex-direction:column;gap:8px">
         ${(c.artifacts||[]).map((a,idx)=>`
         <div style="display:flex;gap:8px;align-items:flex-start;background:var(--bg3);border:1px solid var(--border);border-radius:4px;padding:8px">
-          <div style="flex:1;display:grid;grid-template-columns:2fr 1fr 2fr 2fr;gap:6px">
-            <div><label style="font-size:10px;color:var(--text2)">Name</label>
-              <input type="text" id="ce-art-name-${idx}" value="${esc(a.name||'')}" style="width:100%"></div>
-            <div><label style="font-size:10px;color:var(--text2)">Quality</label>
-              <select id="ce-art-quality-${idx}" style="width:100%">
-                <option value="">—</option>
-                <option value="Minor"${a.quality==='Minor'?' selected':''}>Minor</option>
-                <option value="Normal"${a.quality==='Normal'?' selected':''}>Normal</option>
-                <option value="Major"${a.quality==='Major'?' selected':''}>Major</option>
-                <option value="Grand"${a.quality==='Grand'?' selected':''}>Grand</option>
-              </select></div>
-            <div><label style="font-size:10px;color:var(--text2)">Description</label>
-              <textarea id="ce-art-desc-${idx}" rows="2" style="width:100%">${esc(a.description||'')}</textarea></div>
-            <div><label style="font-size:10px;color:var(--text2)">Effects</label>
-              <textarea id="ce-art-effects-${idx}" rows="2" style="width:100%">${esc(a.effects||'')}</textarea></div>
+          <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+            ${(p.artifacts||[]).length?`<div style="display:flex;align-items:center;gap:6px">
+              <label style="font-size:10px;color:var(--text2);white-space:nowrap">From list:</label>
+              <select style="flex:1;font-size:11px" onchange="if(this.value!=='')adminPickCharArtifact('${p.id}',${idx},parseInt(this.value));this.value=''">
+                <option value="">— pick artifact to fill fields —</option>
+                ${(p.artifacts||[]).map((src,ai)=>`<option value="${ai}">${esc(src.name||'Unnamed')}${src.quality?' ('+src.quality+')':''}</option>`).join('')}
+              </select>
+            </div>`:''}
+            <div style="display:grid;grid-template-columns:2fr 1fr 2fr 2fr;gap:6px">
+              <div><label style="font-size:10px;color:var(--text2)">Name</label>
+                <input type="text" id="ce-art-name-${idx}" value="${esc(a.name||'')}" style="width:100%"></div>
+              <div><label style="font-size:10px;color:var(--text2)">Quality</label>
+                <select id="ce-art-quality-${idx}" style="width:100%">
+                  <option value="">—</option>
+                  <option value="Minor"${a.quality==='Minor'?' selected':''}>Minor</option>
+                  <option value="Normal"${a.quality==='Normal'?' selected':''}>Normal</option>
+                  <option value="Major"${a.quality==='Major'?' selected':''}>Major</option>
+                  <option value="Grand"${a.quality==='Grand'?' selected':''}>Grand</option>
+                </select></div>
+              <div><label style="font-size:10px;color:var(--text2)">Description</label>
+                <textarea id="ce-art-desc-${idx}" rows="2" style="width:100%">${esc(a.description||'')}</textarea></div>
+              <div><label style="font-size:10px;color:var(--text2)">Effects</label>
+                <textarea id="ce-art-effects-${idx}" rows="2" style="width:100%">${esc(a.effects||'')}</textarea></div>
+            </div>
           </div>
           <button class="btn btn-red btn-sm" style="flex-shrink:0;margin-top:16px" onclick="adminDeleteCharArtifact('${p.id}',${idx})">✕</button>
         </div>`).join('')}
@@ -3466,24 +3477,33 @@ function renderAdminApprenticeEdit(p) {
               <div style="display:flex;flex-direction:column;gap:4px">
                 ${(row.artifacts||[]).map((art,artIdx)=>`
                 <div style="display:flex;gap:6px;align-items:flex-start;background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:6px">
-                  <div style="flex:1;display:grid;grid-template-columns:2fr 1fr 2fr 2fr;gap:4px">
-                    <div><label style="font-size:9px;color:var(--text2)">Name</label>
-                      <input type="text" value="${esc(art.name||'')}" style="width:100%;font-size:12px"
-                        onchange="adminUpdateApprArtifact('${p.id}',${idx},${artIdx},'name',this.value)"></div>
-                    <div><label style="font-size:9px;color:var(--text2)">Quality</label>
-                      <select style="width:100%;font-size:12px" onchange="adminUpdateApprArtifact('${p.id}',${idx},${artIdx},'quality',this.value)">
-                        <option value="">—</option>
-                        <option value="Minor"${art.quality==='Minor'?' selected':''}>Minor</option>
-                        <option value="Normal"${art.quality==='Normal'?' selected':''}>Normal</option>
-                        <option value="Major"${art.quality==='Major'?' selected':''}>Major</option>
-                        <option value="Grand"${art.quality==='Grand'?' selected':''}>Grand</option>
-                      </select></div>
-                    <div><label style="font-size:9px;color:var(--text2)">Description</label>
-                      <textarea style="width:100%;font-size:12px" rows="2"
-                        onchange="adminUpdateApprArtifact('${p.id}',${idx},${artIdx},'description',this.value)">${esc(art.description||'')}</textarea></div>
-                    <div><label style="font-size:9px;color:var(--text2)">Effects</label>
-                      <textarea style="width:100%;font-size:12px" rows="2"
-                        onchange="adminUpdateApprArtifact('${p.id}',${idx},${artIdx},'effects',this.value)">${esc(art.effects||'')}</textarea></div>
+                  <div style="flex:1;display:flex;flex-direction:column;gap:4px">
+                    ${(p.artifacts||[]).length?`<div style="display:flex;align-items:center;gap:6px">
+                      <label style="font-size:9px;color:var(--text2);white-space:nowrap">From list:</label>
+                      <select style="flex:1;font-size:11px" onchange="if(this.value!=='')adminPickApprArtifact('${p.id}',${idx},${artIdx},parseInt(this.value));this.value=''">
+                        <option value="">— pick artifact —</option>
+                        ${(p.artifacts||[]).map((src,ai)=>`<option value="${ai}">${esc(src.name||'Unnamed')}${src.quality?' ('+src.quality+')':''}</option>`).join('')}
+                      </select>
+                    </div>`:''}
+                    <div style="display:grid;grid-template-columns:2fr 1fr 2fr 2fr;gap:4px">
+                      <div><label style="font-size:9px;color:var(--text2)">Name</label>
+                        <input type="text" value="${esc(art.name||'')}" style="width:100%;font-size:12px"
+                          onchange="adminUpdateApprArtifact('${p.id}',${idx},${artIdx},'name',this.value)"></div>
+                      <div><label style="font-size:9px;color:var(--text2)">Quality</label>
+                        <select style="width:100%;font-size:12px" onchange="adminUpdateApprArtifact('${p.id}',${idx},${artIdx},'quality',this.value)">
+                          <option value="">—</option>
+                          <option value="Minor"${art.quality==='Minor'?' selected':''}>Minor</option>
+                          <option value="Normal"${art.quality==='Normal'?' selected':''}>Normal</option>
+                          <option value="Major"${art.quality==='Major'?' selected':''}>Major</option>
+                          <option value="Grand"${art.quality==='Grand'?' selected':''}>Grand</option>
+                        </select></div>
+                      <div><label style="font-size:9px;color:var(--text2)">Description</label>
+                        <textarea style="width:100%;font-size:12px" rows="2"
+                          onchange="adminUpdateApprArtifact('${p.id}',${idx},${artIdx},'description',this.value)">${esc(art.description||'')}</textarea></div>
+                      <div><label style="font-size:9px;color:var(--text2)">Effects</label>
+                        <textarea style="width:100%;font-size:12px" rows="2"
+                          onchange="adminUpdateApprArtifact('${p.id}',${idx},${artIdx},'effects',this.value)">${esc(art.effects||'')}</textarea></div>
+                    </div>
                   </div>
                   <button class="btn btn-red btn-sm" style="flex-shrink:0" onclick="adminDeleteApprArtifact('${p.id}',${idx},${artIdx})">✕</button>
                 </div>`).join('')}
@@ -3617,6 +3637,35 @@ function _flushCharArtifacts(pid) {
     if(d)  p.character.artifacts[idx].description = d.value;
     if(fx) p.character.artifacts[idx].effects     = fx.value;
   });
+}
+function adminPickCharArtifact(pid, charArtIdx, artListIdx) {
+  const p = STATE.players[pid];
+  if(!p) return;
+  const src = (p.artifacts||[])[artListIdx];
+  if(!src) return;
+  _flushCharArtifacts(pid);
+  p.character.artifacts = p.character.artifacts||[];
+  if(p.character.artifacts[charArtIdx]) {
+    Object.assign(p.character.artifacts[charArtIdx], {
+      name: src.name||'', quality: src.quality||'',
+      description: src.description||'', effects: src.effects||''
+    });
+  }
+  saveState(); render();
+}
+function adminPickApprArtifact(pid, apprIdx, artIdx, artListIdx) {
+  const p = STATE.players[pid];
+  if(!p) return;
+  const src = (p.artifacts||[])[artListIdx];
+  if(!src) return;
+  p.apprentices[apprIdx].artifacts = p.apprentices[apprIdx].artifacts||[];
+  if(p.apprentices[apprIdx].artifacts[artIdx]) {
+    Object.assign(p.apprentices[apprIdx].artifacts[artIdx], {
+      name: src.name||'', quality: src.quality||'',
+      description: src.description||'', effects: src.effects||''
+    });
+  }
+  saveState(); render();
 }
 function saveAdminCharacter(pid) {
   const p = STATE.players[pid];
@@ -3773,7 +3822,7 @@ function renderAdminIncomeEdit(p) {
     <div class="card-title">Income / Upkeep (${list.length})
       <button class="btn btn-green btn-sm" onclick="adminAddIncomeRow('${p.id}')">+ Add Row</button>
     </div>
-    <div class="tbl-wrap"><table>
+    <div class="tbl-wrap"><table class="compact-tbl">
       <thead><tr><th>Name</th><th>Qty</th><th>Income</th><th>Upkeep</th><th>Net</th><th>Total Net</th><th></th></tr></thead>
       <tbody>
         ${list.map((r,idx)=>`<tr>

@@ -254,18 +254,21 @@ function loadState() {
 function saveState() {
   STATE._version = DATA_VERSION;
   STATE._savedAt = Date.now(); // timestamp so initApp knows which copy is newer
+  let localOk = false;
   try {
     localStorage.setItem('rta_state', JSON.stringify(STATE));
+    localOk = true;
   } catch(e) {
-    // localStorage quota hit — Supabase will still save, so no user-facing error needed
-    console.warn('localStorage quota exceeded (Supabase will sync):', e);
+    // localStorage quota hit — push to Supabase immediately so there's no data-loss window
+    console.warn('localStorage quota exceeded — saving to Supabase immediately:', e);
   }
   clearTimeout(_saveTimer);
+  // If localStorage failed, skip the debounce so data isn't stuck only in memory
   _saveTimer = setTimeout(async () => {
     try {
       await sb.from('game_state').upsert({ id: 'main', data: STATE, updated_at: new Date().toISOString() });
     } catch(e) { console.error('Supabase save failed:', e); }
-  }, 1500);
+  }, localOk ? 1500 : 0);
 }
 function migrateState(state) {
   Object.values(state.players||{}).forEach(p => {
@@ -2847,8 +2850,8 @@ function renderArtifactsTab() {
       <td>
         <div style="font-weight:600;color:var(--gold)">${esc(a.name)}</div>
         ${a._holders.length?`<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">
-          ${a._holders.map(h=>`<span class="tag ${h.type==='character'?'tag-gold':'tag-blue'}" style="font-size:10px">
-            ${esc(h.holder)}${h.qty>1?' · '+h.qty+'x':''}
+          ${a._holders.map(h=>`<span style="font-size:10px;padding:1px 7px;border-radius:10px;border:1px solid ${h.type==='character'?'var(--gold)':'var(--text2)'};color:${h.type==='character'?'var(--gold)':'var(--text2)'};background:transparent;white-space:nowrap">
+            ${h.type==='character'?'⚔':'◆'} ${esc(h.holder)}${h.qty>1?' · '+h.qty+'x':''}
           </span>`).join('')}
         </div>`:``}
       </td>

@@ -242,6 +242,43 @@ function _resizeToDataUrl(blob, maxPx, quality, cb) {
   img.onerror = () => { URL.revokeObjectURL(url); cb(null); };
   img.src = url;
 }
+// Resize then upload directly to Supabase Storage — returns a public URL promise
+function _resizeAndUpload(file, storagePath, maxPx, quality) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let w = img.width, h = img.height;
+      if(w > maxPx || h > maxPx) {
+        if(w >= h) { h = Math.round(h * maxPx / w); w = maxPx; }
+        else        { w = Math.round(w * maxPx / h); h = maxPx; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      canvas.toBlob(async blob => {
+        try {
+          const path = storagePath + '_' + Date.now() + '.jpg';
+          const { error } = await sb.storage.from('images').upload(path, blob, { upsert:true, contentType:'image/jpeg' });
+          if(error) throw error;
+          const { data: { publicUrl } } = sb.storage.from('images').getPublicUrl(path);
+          resolve(publicUrl);
+        } catch(e) { reject(e); }
+      }, 'image/jpeg', quality);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Image failed to load')); };
+    img.src = url;
+  });
+}
+function _base64ToBlob(dataUrl) {
+  const [meta, b64] = dataUrl.split(',');
+  const mime = meta.match(/:(.*?);/)[1];
+  const bytes = atob(b64);
+  const arr = new Uint8Array(bytes.length);
+  for(let i=0;i<bytes.length;i++) arr[i]=bytes.charCodeAt(i);
+  return new Blob([arr], { type: mime });
+}
 
 function loadState() {
   try {
@@ -3300,6 +3337,7 @@ function renderAdminOverview() {
         <button class="btn btn-ghost" onclick="exportData()">Export Data (JSON)</button>
         <button class="btn btn-ghost" onclick="importData()">Import Data (JSON)</button>
         <button class="btn btn-gold" onclick="showBackupRestore()">⟳ Restore from Backup</button>
+        <button class="btn btn-green" onclick="migrateImagesToStorage()">📦 Migrate Images to Storage</button>
         <button class="btn btn-ghost" onclick="changeMasterPassword()">Change Master Password</button>
         <button class="btn btn-ghost" onclick="managePlayerPasswords()">Manage Player Passwords</button>
         <div style="font-size:11px;color:var(--text2);padding-top:4px;border-top:1px solid var(--border);margin-top:4px">
@@ -3455,17 +3493,18 @@ function renderAdminCharacterEdit(p) {
   </div>`;
 }
 
-function handleCharImagePaste(e, pid) {
+async function handleCharImagePaste(e, pid) {
   e.preventDefault();
   const items = e.clipboardData && e.clipboardData.items;
   if(!items) return;
   for(let i=0;i<items.length;i++) {
     if(items[i].type.startsWith('image/')) {
-      _resizeToDataUrl(items[i].getAsFile(), 900, 0.88, dataUrl => {
-        if(!dataUrl) { notify('Image failed to process.', true); return; }
-        STATE.players[pid].character.charImage = dataUrl;
+      try {
+        notify('Uploading image…');
+        const url = await _resizeAndUpload(items[i].getAsFile(), `chars/${pid}_char`, 900, 0.88);
+        STATE.players[pid].character.charImage = url;
         saveState(); notify('Character image saved.'); render();
-      });
+      } catch(err) { notify('Image upload failed: '+err.message, true); }
       return;
     }
   }
@@ -3477,17 +3516,18 @@ function clearCharImage(pid) {
   saveState(); notify('Image removed.'); render();
 }
 
-function handleApprenticeImagePaste(e, pid, idx) {
+async function handleApprenticeImagePaste(e, pid, idx) {
   e.preventDefault();
   const items = e.clipboardData && e.clipboardData.items;
   if(!items) return;
   for(let i=0;i<items.length;i++) {
     if(items[i].type.startsWith('image/')) {
-      _resizeToDataUrl(items[i].getAsFile(), 800, 0.85, dataUrl => {
-        if(!dataUrl) { notify('Image failed to process.', true); return; }
-        STATE.players[pid].apprentices[idx].imageUrl = dataUrl;
+      try {
+        notify('Uploading image…');
+        const url = await _resizeAndUpload(items[i].getAsFile(), `chars/${pid}_appr_${idx}`, 800, 0.85);
+        STATE.players[pid].apprentices[idx].imageUrl = url;
         saveState(); notify('Apprentice image saved.'); render();
-      });
+      } catch(err) { notify('Image upload failed: '+err.message, true); }
       return;
     }
   }
@@ -3498,29 +3538,31 @@ function clearApprenticeImage(pid, idx) {
   STATE.players[pid].apprentices[idx].imageUrl = '';
   saveState(); notify('Image removed.'); render();
 }
-function handleNotableImagePaste(e, pid, idx) {
+async function handleNotableImagePaste(e, pid, idx) {
   e.preventDefault();
   const items = e.clipboardData && e.clipboardData.items;
   if(!items) return;
   for(let i=0;i<items.length;i++) {
     if(items[i].type.startsWith('image/')) {
-      _resizeToDataUrl(items[i].getAsFile(), 800, 0.85, dataUrl => {
-        if(!dataUrl) { notify('Image failed to process.', true); return; }
-        STATE.players[pid].notables[idx].imageUrl = dataUrl;
+      try {
+        notify('Uploading image…');
+        const url = await _resizeAndUpload(items[i].getAsFile(), `chars/${pid}_notable_${idx}`, 800, 0.85);
+        STATE.players[pid].notables[idx].imageUrl = url;
         saveState(); notify('Notable image saved.'); render();
-      });
+      } catch(err) { notify('Image upload failed: '+err.message, true); }
       return;
     }
   }
   notify('No image found in clipboard.');
 }
-function handleNotableImageFile(input, pid, idx) {
+async function handleNotableImageFile(input, pid, idx) {
   const file = input.files[0]; if(!file) return;
-  _resizeToDataUrl(file, 800, 0.85, dataUrl => {
-    if(!dataUrl) { notify('Image failed to load.', true); return; }
-    STATE.players[pid].notables[idx].imageUrl = dataUrl;
+  try {
+    notify('Uploading image…');
+    const url = await _resizeAndUpload(file, `chars/${pid}_notable_${idx}`, 800, 0.85);
+    STATE.players[pid].notables[idx].imageUrl = url;
     saveState(); notify('Notable image saved.'); render();
-  });
+  } catch(err) { notify('Image upload failed: '+err.message, true); }
 }
 function clearNotableImage(pid, idx) {
   STATE.players[pid].notables[idx].imageUrl = '';
@@ -4043,30 +4085,32 @@ function renderAdminShop() {
 }
 // ── Shop item image helpers ──────────────────────────────────
 let _siImageData = ''; // base64 or URL for the currently open shop-item modal
-function _siImgPaste(e) {
+async function _siImgPaste(e) {
   e.preventDefault();
   const items = e.clipboardData?.items;
   if(items) {
     for(let i=0;i<items.length;i++) {
       if(items[i].type.startsWith('image/')) {
-        _resizeToDataUrl(items[i].getAsFile(), 800, 0.85, dataUrl => {
-          if(!dataUrl) { notify('Image failed to process.', true); return; }
-          _siImageData = dataUrl; _siImgPreview();
-        });
+        try {
+          notify('Uploading image…');
+          const url = await _resizeAndUpload(items[i].getAsFile(), `shop/item_${Date.now()}`, 800, 0.85);
+          _siImageData = url; _siImgPreview();
+        } catch(err) { notify('Image upload failed: '+err.message, true); }
         return;
       }
     }
   }
   const text = e.clipboardData?.getData('text/plain');
-  if(text && (text.startsWith('http')||text.startsWith('data:'))) { _siImageData = text; _siImgPreview(); return; }
+  if(text && text.startsWith('http')) { _siImageData = text; _siImgPreview(); return; }
   notify('No image found in clipboard.', true);
 }
-function _siImgFile(input) {
+async function _siImgFile(input) {
   const file = input.files[0]; if(!file) return;
-  _resizeToDataUrl(file, 800, 0.85, dataUrl => {
-    if(!dataUrl) { notify('Image failed to load.', true); return; }
-    _siImageData = dataUrl; _siImgPreview();
-  });
+  try {
+    notify('Uploading image…');
+    const url = await _resizeAndUpload(file, `shop/item_${Date.now()}`, 800, 0.85);
+    _siImageData = url; _siImgPreview();
+  } catch(err) { notify('Image upload failed: '+err.message, true); }
 }
 function _siImgUrlInput(val) {
   _siImageData = val;
@@ -4086,28 +4130,30 @@ function _siImgPreview() {
   else if(urlInp && _siImageData.startsWith('data:')) urlInp.value = '';
 }
 // ── Admin roster image helpers ───────────────────────────────
-function _adminImgPaste(e, pid, listKey, idx) {
+async function _adminImgPaste(e, pid, listKey, idx) {
   e.preventDefault();
   const items = e.clipboardData?.items;
   if(items) {
     for(let i=0;i<items.length;i++) {
       if(items[i].type.startsWith('image/')) {
-        _resizeToDataUrl(items[i].getAsFile(), 800, 0.85, dataUrl => {
-          if(!dataUrl) { notify('Image failed to process.', true); return; }
-          adminUpdateCell(pid,listKey,idx,'imageUrl',dataUrl); saveState(); render();
-        });
+        try {
+          notify('Uploading image…');
+          const url = await _resizeAndUpload(items[i].getAsFile(), `items/${pid}_${listKey}_${idx}`, 800, 0.85);
+          adminUpdateCell(pid,listKey,idx,'imageUrl',url); saveState(); render();
+        } catch(err) { notify('Image upload failed: '+err.message, true); }
         return;
       }
     }
   }
   notify('No image in clipboard.', true);
 }
-function _adminImgFile(input, pid, listKey, idx) {
+async function _adminImgFile(input, pid, listKey, idx) {
   const file = input.files[0]; if(!file) return;
-  _resizeToDataUrl(file, 800, 0.85, dataUrl => {
-    if(!dataUrl) { notify('Image failed to load.', true); return; }
-    adminUpdateCell(pid,listKey,idx,'imageUrl',dataUrl); saveState(); render();
-  });
+  try {
+    notify('Uploading image…');
+    const url = await _resizeAndUpload(file, `items/${pid}_${listKey}_${idx}`, 800, 0.85);
+    adminUpdateCell(pid,listKey,idx,'imageUrl',url); saveState(); render();
+  } catch(err) { notify('Image upload failed: '+err.message, true); }
 }
 // ─────────────────────────────────────────────────────────────
 function showAddShopItem() { showShopItemModal(null); }
@@ -4917,6 +4963,41 @@ async function restoreBackup(backupId, modal) {
     if(modal) modal.remove();
     render();
   } catch(e) { notify('Restore failed: '+e.message, true); }
+}
+async function migrateImagesToStorage() {
+  if(!confirm('Migrate all base64 images to Supabase Storage?\n\nThis uploads every existing image and replaces the stored data with a URL. Only needs to be done once.')) return;
+  let count = 0, skipped = 0;
+  const isB64 = s => typeof s === 'string' && s.startsWith('data:image/');
+
+  async function upload(dataUrl, path) {
+    try {
+      const blob = _base64ToBlob(dataUrl);
+      const fullPath = path + '_' + Date.now() + '_' + (count+skipped) + '.jpg';
+      const { error } = await sb.storage.from('images').upload(fullPath, blob, { upsert:true, contentType:'image/jpeg' });
+      if(error) throw error;
+      const { data: { publicUrl } } = sb.storage.from('images').getPublicUrl(fullPath);
+      count++;
+      return publicUrl;
+    } catch(e) { console.error('Failed to upload', path, e); skipped++; return dataUrl; }
+  }
+
+  for(const [pid, p] of Object.entries(STATE.players)) {
+    if(isB64(p.character?.charImage))
+      p.character.charImage = await upload(p.character.charImage, `chars/${pid}_char`);
+    for(const [i,a] of (p.apprentices||[]).entries())
+      if(isB64(a.imageUrl)) a.imageUrl = await upload(a.imageUrl, `chars/${pid}_appr_${i}`);
+    for(const [i,n] of (p.notables||[]).entries())
+      if(isB64(n.imageUrl)) n.imageUrl = await upload(n.imageUrl, `chars/${pid}_notable_${i}`);
+    for(const list of ['formations','assets','ships','structures','miscItems'])
+      for(const [i,item] of (p[list]||[]).entries())
+        if(isB64(item.imageUrl)) item.imageUrl = await upload(item.imageUrl, `items/${pid}_${list}_${i}`);
+  }
+  for(const [i,item] of (STATE.shopItems||[]).entries())
+    if(isB64(item.imageUrl)) item.imageUrl = await upload(item.imageUrl, `shop/item_${i}`);
+
+  saveState();
+  notify(`Migration complete — ${count} image${count!==1?'s':''} uploaded${skipped?', '+skipped+' failed (kept as-is)':''}.`);
+  render();
 }
 function exportData() {
   const blob = new Blob([JSON.stringify(STATE, null, 2)], { type: 'application/json' });

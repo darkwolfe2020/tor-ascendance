@@ -219,6 +219,8 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let _saveTimer = null;
 let _stateVerified = false;   // true once initApp confirms Supabase responded
 let _lastBackupDate = '';     // tracks which calendar day was last backed up
+let _initRemoteTs  = 0;       // the _savedAt we loaded from Supabase on startup
+let _retryTimer    = null;    // auto-retry interval when Supabase is unverified
 
 function newId() { return '_' + Math.random().toString(36).slice(2,9); }
 
@@ -280,6 +282,34 @@ function _base64ToBlob(dataUrl) {
   return new Blob([arr], { type: mime });
 }
 
+async function retrySupabaseConnection() {
+  try {
+    const { data: row } = await sb.from('game_state').select('data').eq('id','main').single();
+    if(row?.data) {
+      const remote = (row.data._version||0) >= DATA_VERSION ? row.data : migrateState(row.data);
+      const remoteTs = remote._savedAt || 0;
+      const localTs  = STATE._savedAt  || 0;
+      if(remoteTs > localTs) {
+        STATE = remote;
+        try { localStorage.setItem('rta_state', JSON.stringify(STATE)); } catch(e) {}
+      }
+      _initRemoteTs = Math.max(remoteTs, localTs);
+    }
+    _stateVerified = true;
+    clearInterval(_retryTimer); _retryTimer = null;
+    notify('✓ Supabase reconnected — saves resumed.');
+    render();
+  } catch(e) {
+    console.warn('Supabase retry failed:', e);
+  }
+}
+function renderSaveWarningBanner() {
+  if(_stateVerified) return '';
+  return `<div style="background:#7b2020;color:#fff;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px;border-radius:6px;margin-bottom:12px;flex-wrap:wrap">
+    <span>⚠ <strong>Saves are currently blocked</strong> — could not connect to Supabase on load. Your changes are not being saved.</span>
+    <button class="btn btn-sm" style="background:#fff;color:#7b2020;font-weight:700;flex-shrink:0" onclick="retrySupabaseConnection()">Retry Connection</button>
+  </div>`;
+}
 function loadState() {
   try {
     const s = localStorage.getItem('rta_state');
@@ -307,8 +337,18 @@ function saveState() {
       return;
     }
     try {
+      // Read current Supabase timestamp before writing — if someone else saved
+      // more recently than what we loaded at startup, abort to avoid clobbering them.
+      const { data: check } = await sb.from('game_state').select('data').eq('id','main').single();
+      const currentRemoteTs = check?.data?._savedAt || 0;
+      if(currentRemoteTs > _initRemoteTs && currentRemoteTs > STATE._savedAt) {
+        console.warn('Supabase has newer data than our baseline — aborting write to prevent rollback.');
+        notify('⚠ Save blocked: another tab has newer data. Please refresh to sync.', true);
+        return;
+      }
       await sb.from('game_state').upsert({ id: 'main', data: STATE, updated_at: new Date().toISOString() });
-      // Daily rolling backup — one snapshot per calendar day, kept independently
+      _initRemoteTs = STATE._savedAt; // advance our baseline to what we just wrote
+      // Daily rolling backup
       const today = new Date().toISOString().slice(0,10);
       if(today !== _lastBackupDate) {
         _lastBackupDate = today;
@@ -1231,15 +1271,19 @@ async function initApp() {
         try {
           localStorage.setItem('rta_state', JSON.stringify(STATE));
         } catch(le) {
-          // localStorage full — state is live in memory and Supabase is the source of truth
           console.warn('localStorage full on initApp — running from Supabase only:', le);
         }
       }
+      _initRemoteTs = remoteTs; // remember what we loaded so saves can sanity-check
     }
-    _stateVerified = true; // Supabase responded successfully — safe to write
+    _stateVerified = true;
+    clearInterval(_retryTimer); _retryTimer = null;
   } catch(e) {
-    // Only a genuine Supabase network/auth failure reaches here now
     console.error('Supabase load failed:', e);
+    // Start auto-retry every 30s so saves unblock as soon as connection returns
+    if(!_retryTimer) {
+      _retryTimer = setInterval(retrySupabaseConnection, 30000);
+    }
   }
   currentView = 'login';
   setTheme(currentTheme);
@@ -1334,6 +1378,10 @@ function render() {
   // Prepend pending-purchases banner for player views (not shop — it already lists them there)
   if(currentPlayer && !isAdmin && currentView !== 'login' && currentView !== 'shop') {
     _viewHtml = renderPendingBanner() + _viewHtml;
+  }
+  // Prepend save-blocked warning for everyone when Supabase is unverified
+  if(currentView !== 'login') {
+    _viewHtml = renderSaveWarningBanner() + _viewHtml;
   }
   const _sy = window.scrollY;
   app.innerHTML = _viewHtml;
@@ -3337,6 +3385,7 @@ function renderAdminOverview() {
         <button class="btn btn-ghost" onclick="exportData()">Export Data (JSON)</button>
         <button class="btn btn-ghost" onclick="importData()">Import Data (JSON)</button>
         <button class="btn btn-gold" onclick="showBackupRestore()">⟳ Restore from Backup</button>
+        <button class="btn btn-red" onclick="createRollbackPoint()">📌 Create Rollback Point</button>
         <button class="btn btn-green" onclick="migrateImagesToStorage()">📦 Migrate Images to Storage</button>
         <button class="btn btn-ghost" onclick="changeMasterPassword()">Change Master Password</button>
         <button class="btn btn-ghost" onclick="managePlayerPasswords()">Manage Player Passwords</button>
@@ -4922,47 +4971,76 @@ function clearPlayerPassword(id) {
   managePlayerPasswords();
 }
 
+async function createRollbackPoint() {
+  const label = prompt('Name this rollback point (e.g. "Before cycle 4 resolution"):');
+  if(label === null) return;
+  const slug = label.trim().replace(/[^a-zA-Z0-9 _-]/g,'').replace(/\s+/g,'_').slice(0,40) || 'unnamed';
+  const id = 'rollback_' + new Date().toISOString().slice(0,16).replace('T','_').replace(':','') + '_' + slug;
+  try {
+    await sb.from('game_state').upsert({ id, data: STATE, updated_at: new Date().toISOString() });
+    notify('Rollback point saved: "' + label.trim() + '"');
+  } catch(e) { notify('Failed to save rollback point: ' + e.message, true); }
+}
 async function showBackupRestore() {
   const modal = document.createElement('div');
   modal.className = 'modal-overlay';
-  modal.innerHTML = `<div class="modal" style="min-width:440px"><h2>Restore from Backup</h2><div class="dim" style="padding:12px">Loading backups…</div></div>`;
+  modal.innerHTML = `<div class="modal" style="min-width:480px"><h2>Restore from Backup</h2><div class="dim" style="padding:12px">Loading…</div></div>`;
   document.body.appendChild(modal);
-  // Build list of the last 14 possible backup IDs
-  const ids = Array.from({length:14}, (_,i) => {
-    const d = new Date(); d.setDate(d.getDate()-i);
-    return 'backup_' + d.toISOString().slice(0,10);
-  });
-  const rows = await Promise.all(ids.map(id =>
-    sb.from('game_state').select('id,updated_at').eq('id',id).maybeSingle().then(r=>r.data).catch(()=>null)
-  ));
-  const found = rows.filter(Boolean);
+
+  // Fetch all game_state rows that are backups or rollback points
+  const { data: allRows } = await sb.from('game_state').select('id,updated_at').neq('id','main').order('updated_at',{ascending:false}).catch(()=>({data:[]}));
+  const manual = (allRows||[]).filter(r=>r.id.startsWith('rollback_'));
+  const daily  = (allRows||[]).filter(r=>r.id.startsWith('backup_'));
+
+  function rowHtml(b, label) {
+    const name = b.id.replace(/^(rollback_|backup_)/,'').replace(/_/g,' ');
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;margin-bottom:6px">
+      <div>
+        <div style="font-weight:600">${esc(name)}</div>
+        <div class="dim" style="font-size:11px">${new Date(b.updated_at).toLocaleString()}${label?` · <span class="tag tag-gold" style="font-size:9px">${label}</span>`:''}</div>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-gold btn-sm" onclick="restoreBackup('${b.id}',this.closest('.modal-overlay'))">Restore</button>
+        <button class="btn btn-red btn-sm" onclick="deleteBackup('${b.id}',this)">✕</button>
+      </div>
+    </div>`;
+  }
+
   modal.querySelector('.modal').innerHTML = `
     <h2>Restore from Backup</h2>
-    <p class="dim" style="font-size:13px;margin-bottom:14px">One backup is saved per calendar day. Restoring will replace ALL current data.</p>
-    ${found.length ? found.map(b=>`
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;margin-bottom:6px">
-        <div>
-          <div style="font-weight:600">${b.id.replace('backup_','')}</div>
-          <div class="dim" style="font-size:11px">${new Date(b.updated_at).toLocaleString()}</div>
-        </div>
-        <button class="btn btn-gold btn-sm" onclick="restoreBackup('${b.id}',this.closest('.modal-overlay'))">Restore</button>
-      </div>`).join('') : '<div class="dim" style="padding:12px">No backups found for the last 14 days.</div>'}
+    <p class="dim" style="font-size:12px;margin-bottom:14px">Restoring replaces ALL current data. Create a rollback point first if unsure.</p>
+    ${manual.length ? `<div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text2);margin-bottom:6px">📌 Manual Rollback Points</div>
+    ${manual.map(b=>rowHtml(b,'Manual')).join('')}` : ''}
+    ${daily.length ? `<div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text2);margin:${manual.length?'12px':0} 0 6px">🗓 Daily Auto-Backups</div>
+    ${daily.map(b=>rowHtml(b,'')).join('')}` : ''}
+    ${!manual.length&&!daily.length ? '<div class="dim" style="padding:12px;text-align:center">No backups found.</div>' : ''}
     <div class="modal-actions" style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px">
       <button class="btn btn-ghost" onclick="this.closest('.modal-overlay').remove()">Close</button>
     </div>`;
 }
 async function restoreBackup(backupId, modal) {
-  if(!confirm('Restore backup "'+backupId+'"? This will replace ALL current data.')) return;
+  const name = backupId.replace(/^(rollback_|backup_)/,'').replace(/_/g,' ');
+  if(!confirm('Restore "'+name+'"?\n\nThis will replace ALL current data. Consider creating a rollback point first.')) return;
   try {
     const { data: row } = await sb.from('game_state').select('data').eq('id',backupId).single();
     if(!row?.data) { notify('Backup data not found.', true); return; }
     STATE = migrateState(row.data);
-    _stateVerified = true; // we just loaded from Supabase so writes are safe
+    _stateVerified = true;
+    _initRemoteTs = STATE._savedAt || 0;
     saveState();
-    notify('Backup "'+backupId+'" restored successfully.');
+    notify('Restored: "'+name+'"');
     if(modal) modal.remove();
     render();
   } catch(e) { notify('Restore failed: '+e.message, true); }
+}
+async function deleteBackup(backupId, btn) {
+  const name = backupId.replace(/^(rollback_|backup_)/,'').replace(/_/g,' ');
+  if(!confirm('Delete backup "'+name+'"? This cannot be undone.')) return;
+  try {
+    await sb.from('game_state').delete().eq('id', backupId);
+    btn.closest('div[style]').remove();
+    notify('Backup deleted.');
+  } catch(e) { notify('Delete failed: '+e.message, true); }
 }
 async function migrateImagesToStorage() {
   if(!confirm('Migrate all base64 images to Supabase Storage?\n\nThis uploads every existing image and replaces the stored data with a URL. Only needs to be done once.')) return;

@@ -217,6 +217,8 @@ const SUPABASE_URL = 'https://aosvuxygkbpmsedlnuyt.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFvc3Z1eHlna2JwbXNlZGxudXl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMzk5NTUsImV4cCI6MjA5MjgxNTk1NX0.fPeLvX72aGwQzqyEfdjpiVR_9u1T-KTPRJp_9qIEois';
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let _saveTimer = null;
+let _stateVerified = false;   // true once initApp confirms Supabase responded
+let _lastBackupDate = '';     // tracks which calendar day was last backed up
 
 function newId() { return '_' + Math.random().toString(36).slice(2,9); }
 
@@ -253,20 +255,29 @@ function loadState() {
 }
 function saveState() {
   STATE._version = DATA_VERSION;
-  STATE._savedAt = Date.now(); // timestamp so initApp knows which copy is newer
+  STATE._savedAt = Date.now();
   let localOk = false;
   try {
     localStorage.setItem('rta_state', JSON.stringify(STATE));
     localOk = true;
   } catch(e) {
-    // localStorage quota hit — push to Supabase immediately so there's no data-loss window
     console.warn('localStorage quota exceeded — saving to Supabase immediately:', e);
   }
   clearTimeout(_saveTimer);
-  // If localStorage failed, skip the debounce so data isn't stuck only in memory
   _saveTimer = setTimeout(async () => {
+    if(!_stateVerified) {
+      console.warn('Supabase never confirmed on load — skipping write to protect server data.');
+      return;
+    }
     try {
       await sb.from('game_state').upsert({ id: 'main', data: STATE, updated_at: new Date().toISOString() });
+      // Daily rolling backup — one snapshot per calendar day, kept independently
+      const today = new Date().toISOString().slice(0,10);
+      if(today !== _lastBackupDate) {
+        _lastBackupDate = today;
+        await sb.from('game_state').upsert({ id: 'backup_'+today, data: STATE, updated_at: new Date().toISOString() });
+        console.log('Daily backup saved:', 'backup_'+today);
+      }
     } catch(e) { console.error('Supabase save failed:', e); }
   }, localOk ? 1500 : 0);
 }
@@ -1176,18 +1187,23 @@ async function initApp() {
     const { data: row } = await sb.from('game_state').select('data').eq('id', 'main').single();
     if (row?.data) {
       const remote = (row.data._version || 0) >= DATA_VERSION ? row.data : migrateState(row.data);
-      // Only replace local state if Supabase has a genuinely newer save.
-      // This prevents a pending debounced write from being overwritten by a
-      // stale Supabase read (the race condition that caused edits to vanish).
       const localTs  = STATE._savedAt  || 0;
       const remoteTs = remote._savedAt || 0;
       if (remoteTs >= localTs) {
         STATE = remote;
-        localStorage.setItem('rta_state', JSON.stringify(STATE));
+        try {
+          localStorage.setItem('rta_state', JSON.stringify(STATE));
+        } catch(le) {
+          // localStorage full — state is live in memory and Supabase is the source of truth
+          console.warn('localStorage full on initApp — running from Supabase only:', le);
+        }
       }
-      // else: local is newer — keep it; the background timer will push it to Supabase shortly
     }
-  } catch(e) { console.error('Supabase load failed:', e); }
+    _stateVerified = true; // Supabase responded successfully — safe to write
+  } catch(e) {
+    // Only a genuine Supabase network/auth failure reaches here now
+    console.error('Supabase load failed:', e);
+  }
   currentView = 'login';
   setTheme(currentTheme);
   render();
@@ -3283,8 +3299,13 @@ function renderAdminOverview() {
         <button class="btn btn-ghost" onclick="navigate('admin-requests')">Review Purchase Requests</button>
         <button class="btn btn-ghost" onclick="exportData()">Export Data (JSON)</button>
         <button class="btn btn-ghost" onclick="importData()">Import Data (JSON)</button>
+        <button class="btn btn-gold" onclick="showBackupRestore()">⟳ Restore from Backup</button>
         <button class="btn btn-ghost" onclick="changeMasterPassword()">Change Master Password</button>
         <button class="btn btn-ghost" onclick="managePlayerPasswords()">Manage Player Passwords</button>
+        <div style="font-size:11px;color:var(--text2);padding-top:4px;border-top:1px solid var(--border);margin-top:4px">
+          Last saved: ${STATE._savedAt ? new Date(STATE._savedAt).toLocaleString() : 'unknown'}
+          ${_stateVerified ? '<span style="color:var(--green)">● Supabase connected</span>' : '<span style="color:var(--red2)">⚠ Supabase unverified — saves blocked</span>'}
+        </div>
       </div>
     </div>
   </div>`;
@@ -4855,6 +4876,48 @@ function clearPlayerPassword(id) {
   managePlayerPasswords();
 }
 
+async function showBackupRestore() {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.innerHTML = `<div class="modal" style="min-width:440px"><h2>Restore from Backup</h2><div class="dim" style="padding:12px">Loading backups…</div></div>`;
+  document.body.appendChild(modal);
+  // Build list of the last 14 possible backup IDs
+  const ids = Array.from({length:14}, (_,i) => {
+    const d = new Date(); d.setDate(d.getDate()-i);
+    return 'backup_' + d.toISOString().slice(0,10);
+  });
+  const rows = await Promise.all(ids.map(id =>
+    sb.from('game_state').select('id,updated_at').eq('id',id).maybeSingle().then(r=>r.data).catch(()=>null)
+  ));
+  const found = rows.filter(Boolean);
+  modal.querySelector('.modal').innerHTML = `
+    <h2>Restore from Backup</h2>
+    <p class="dim" style="font-size:13px;margin-bottom:14px">One backup is saved per calendar day. Restoring will replace ALL current data.</p>
+    ${found.length ? found.map(b=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;margin-bottom:6px">
+        <div>
+          <div style="font-weight:600">${b.id.replace('backup_','')}</div>
+          <div class="dim" style="font-size:11px">${new Date(b.updated_at).toLocaleString()}</div>
+        </div>
+        <button class="btn btn-gold btn-sm" onclick="restoreBackup('${b.id}',this.closest('.modal-overlay'))">Restore</button>
+      </div>`).join('') : '<div class="dim" style="padding:12px">No backups found for the last 14 days.</div>'}
+    <div class="modal-actions" style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px">
+      <button class="btn btn-ghost" onclick="this.closest('.modal-overlay').remove()">Close</button>
+    </div>`;
+}
+async function restoreBackup(backupId, modal) {
+  if(!confirm('Restore backup "'+backupId+'"? This will replace ALL current data.')) return;
+  try {
+    const { data: row } = await sb.from('game_state').select('data').eq('id',backupId).single();
+    if(!row?.data) { notify('Backup data not found.', true); return; }
+    STATE = migrateState(row.data);
+    _stateVerified = true; // we just loaded from Supabase so writes are safe
+    saveState();
+    notify('Backup "'+backupId+'" restored successfully.');
+    if(modal) modal.remove();
+    render();
+  } catch(e) { notify('Restore failed: '+e.message, true); }
+}
 function exportData() {
   const blob = new Blob([JSON.stringify(STATE, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');

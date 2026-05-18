@@ -3384,11 +3384,11 @@ function renderAdminOverview() {
         <button class="btn btn-ghost" onclick="navigate('admin-requests')">Review Purchase Requests</button>
         <button class="btn btn-ghost" onclick="exportData()">Export Data (JSON)</button>
         <button class="btn btn-ghost" onclick="importData()">Import Data (JSON)</button>
-        <button class="btn btn-gold" onclick="showBackupRestore()">⟳ Restore from Backup</button>
-        <button class="btn btn-red" onclick="createRollbackPoint()">📌 Create Rollback Point</button>
         <button class="btn btn-green" onclick="migrateImagesToStorage()">📦 Migrate Images to Storage</button>
         <button class="btn btn-ghost" onclick="changeMasterPassword()">Change Master Password</button>
         <button class="btn btn-ghost" onclick="managePlayerPasswords()">Manage Player Passwords</button>
+        <button class="btn btn-red" onclick="createRollbackPoint()">📌 Create Rollback Point</button>
+        <button class="btn btn-gold" onclick="showBackupRestore()">⟳ Restore from Backup</button>
         <div style="font-size:11px;color:var(--text2);padding-top:4px;border-top:1px solid var(--border);margin-top:4px">
           Last saved: ${STATE._savedAt ? new Date(STATE._savedAt).toLocaleString() : 'unknown'}
           ${_stateVerified ? '<span style="color:var(--green)">● Supabase connected</span>' : '<span style="color:var(--red2)">⚠ Supabase unverified — saves blocked</span>'}
@@ -5018,29 +5018,58 @@ async function showBackupRestore() {
       <button class="btn btn-ghost" onclick="this.closest('.modal-overlay').remove()">Close</button>
     </div>`;
 }
-async function restoreBackup(backupId, modal) {
+function _confirmModal(title, body, confirmLabel, confirmClass, onConfirm) {
+  const m = document.createElement('div');
+  m.className = 'modal-overlay';
+  m.innerHTML = `<div class="modal" style="max-width:420px">
+    <h2 style="margin-bottom:10px">${title}</h2>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:20px;line-height:1.5">${body}</p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+      <button class="btn ${confirmClass}" id="_confirm-ok">${confirmLabel}</button>
+    </div>
+  </div>`;
+  document.body.appendChild(m);
+  m.querySelector('#_confirm-ok').onclick = () => { m.remove(); onConfirm(); };
+}
+async function restoreBackup(backupId, parentModal) {
   const name = backupId.replace(/^(rollback_|backup_)/,'').replace(/_/g,' ');
-  if(!confirm('Restore "'+name+'"?\n\nThis will replace ALL current data. Consider creating a rollback point first.')) return;
-  try {
-    const { data: row } = await sb.from('game_state').select('data').eq('id',backupId).single();
-    if(!row?.data) { notify('Backup data not found.', true); return; }
-    STATE = migrateState(row.data);
-    _stateVerified = true;
-    _initRemoteTs = STATE._savedAt || 0;
-    saveState();
-    notify('Restored: "'+name+'"');
-    if(modal) modal.remove();
-    render();
-  } catch(e) { notify('Restore failed: '+e.message, true); }
+  const isManual = backupId.startsWith('rollback_');
+  _confirmModal(
+    '⚠ Confirm Restore',
+    `You are about to restore <strong>"${esc(name)}"</strong>.<br><br>This will <strong>replace ALL current game data</strong>. This action cannot be undone — consider creating a rollback point first if you haven't already.`,
+    'Restore',
+    'btn-red',
+    async () => {
+      try {
+        const { data: row } = await sb.from('game_state').select('data').eq('id',backupId).single();
+        if(!row?.data) { notify('Backup data not found.', true); return; }
+        STATE = migrateState(row.data);
+        _stateVerified = true;
+        _initRemoteTs = STATE._savedAt || 0;
+        saveState();
+        notify('Restored: "'+name+'"');
+        if(parentModal) parentModal.remove();
+        render();
+      } catch(e) { notify('Restore failed: '+e.message, true); }
+    }
+  );
 }
 async function deleteBackup(backupId, btn) {
   const name = backupId.replace(/^(rollback_|backup_)/,'').replace(/_/g,' ');
-  if(!confirm('Delete backup "'+name+'"? This cannot be undone.')) return;
-  try {
-    await sb.from('game_state').delete().eq('id', backupId);
-    btn.closest('div[style]').remove();
-    notify('Backup deleted.');
-  } catch(e) { notify('Delete failed: '+e.message, true); }
+  _confirmModal(
+    'Delete Backup',
+    `Are you sure you want to delete <strong>"${esc(name)}"</strong>?<br><br>This cannot be undone.`,
+    'Delete',
+    'btn-red',
+    async () => {
+      try {
+        await sb.from('game_state').delete().eq('id', backupId);
+        btn.closest('div[style]').remove();
+        notify('Backup deleted.');
+      } catch(e) { notify('Delete failed: '+e.message, true); }
+    }
+  );
 }
 async function migrateImagesToStorage() {
   if(!confirm('Migrate all base64 images to Supabase Storage?\n\nThis uploads every existing image and replaces the stored data with a URL. Only needs to be done once.')) return;

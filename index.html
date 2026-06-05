@@ -293,7 +293,7 @@ async function retrySupabaseConnection() {
         STATE = remote;
         try { localStorage.setItem('rta_state', JSON.stringify(STATE)); } catch(e) {}
       }
-      _initRemoteTs = Math.max(remoteTs, localTs);
+      _initRemoteTs = remoteTs;
     }
     _stateVerified = true;
     clearInterval(_retryTimer); _retryTimer = null;
@@ -341,10 +341,13 @@ function saveState() {
       // more recently than what we loaded at startup, abort to avoid clobbering them.
       const { data: check } = await sb.from('game_state').select('data').eq('id','main').single();
       const currentRemoteTs = check?.data?._savedAt || 0;
-      if(currentRemoteTs > _initRemoteTs && currentRemoteTs > STATE._savedAt) {
-        console.warn('Supabase has newer data than our baseline — aborting write to prevent rollback.');
-        notify('⚠ Save blocked: another tab has newer data. Please refresh to sync.', true);
-        return;
+      if(currentRemoteTs > _initRemoteTs) {
+        if(!isAdmin) {
+          console.warn('Supabase has newer data than our baseline — aborting write to prevent rollback.');
+          notify('⚠ Save blocked: another session has newer data. Please refresh to sync.', true);
+          return;
+        }
+        console.warn('Admin session overriding newer remote data.');
       }
       await sb.from('game_state').upsert({ id: 'main', data: STATE, updated_at: new Date().toISOString() });
       _initRemoteTs = STATE._savedAt; // advance our baseline to what we just wrote
@@ -5046,7 +5049,6 @@ async function restoreBackup(backupId, parentModal) {
         if(!row?.data) { notify('Backup data not found.', true); return; }
         STATE = migrateState(row.data);
         _stateVerified = true;
-        _initRemoteTs = STATE._savedAt || 0;
         saveState();
         notify('Restored: "'+name+'"');
         if(parentModal) parentModal.remove();

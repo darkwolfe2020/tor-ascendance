@@ -347,7 +347,17 @@ function saveState() {
           notify('⚠ Save blocked: another session has newer data. Please refresh to sync.', true);
           return;
         }
-        console.warn('Admin session overriding newer remote data.');
+        // Admin: merge any purchase requests players submitted while this tab was open,
+        // so the admin write doesn't erase them.
+        const remoteState = check?.data;
+        if(remoteState?.purchaseRequests) {
+          const localIds = new Set((STATE.purchaseRequests||[]).map(r=>r.id));
+          const newReqs = remoteState.purchaseRequests.filter(r=>!localIds.has(r.id));
+          if(newReqs.length) {
+            STATE.purchaseRequests = [...(STATE.purchaseRequests||[]), ...newReqs];
+            console.log('Merged', newReqs.length, 'new purchase request(s) from remote before admin write.');
+          }
+        }
       }
       await sb.from('game_state').upsert({ id: 'main', data: STATE, updated_at: new Date().toISOString() });
       _initRemoteTs = STATE._savedAt; // advance our baseline to what we just wrote
@@ -2802,6 +2812,56 @@ function renderFinance() {
   const net = calcNet(p);
   const proj = bal + net;
 
+  // Admin-only: all-player financial overview at the top
+  let adminOverview = '';
+  if(isAdmin) {
+    let grandBal = 0, grandIncome = 0, grandUpkeep = 0;
+    const playerRows = Object.values(STATE.players).map(pl => {
+      const plBal = calcBalance(pl);
+      const plIncome = (pl.income||[]).reduce((s,r)=>s+(Number(r.income||0)*Number(r.quantity||1)),0);
+      const plUpkeep = (pl.income||[]).reduce((s,r)=>s+(Number(r.upkeep||0)*Number(r.quantity||1)),0);
+      const plNet = plIncome - plUpkeep;
+      const plProj = plBal + plNet;
+      grandBal += plBal; grandIncome += plIncome; grandUpkeep += plUpkeep;
+      const netSign = plNet >= 0 ? '+' : '';
+      return `<tr>
+        <td class="gold">${esc(pl.displayName)}</td>
+        <td class="td-num">${fmtCredits(plBal)}</td>
+        <td class="td-num pos">${fmtC(plIncome)}</td>
+        <td class="td-num neg">${plUpkeep>0?CREDIT_SVG+'('+fmt(plUpkeep)+')':'<span class="dim">-</span>'}</td>
+        <td class="td-num" style="color:${plNet<0?'var(--neg)':'var(--pos)'}">${netSign}${CREDIT_SVG}${fmt(plNet)}</td>
+        <td class="td-num">${fmtCredits(plProj)}</td>
+      </tr>`;
+    }).join('');
+    const grandNet = grandIncome - grandUpkeep;
+    const grandProj = grandBal + grandNet;
+    const gNetSign = grandNet >= 0 ? '+' : '';
+    adminOverview = `<div class="card" style="margin-bottom:16px">
+      <div class="card-title">All Players — Financial Overview</div>
+      <div class="tbl-wrap"><table class="compact-tbl">
+        <thead><tr>
+          <th>Player</th>
+          <th class="td-num">Current Balance</th>
+          <th class="td-num">Total Income</th>
+          <th class="td-num">Total Upkeep</th>
+          <th class="td-num">Net / Cycle</th>
+          <th class="td-num">Projected Balance</th>
+        </tr></thead>
+        <tbody>
+          ${playerRows}
+          <tr style="background:var(--bg3);font-weight:700">
+            <td style="color:var(--text2)">TOTALS</td>
+            <td class="td-num">${fmtCredits(grandBal)}</td>
+            <td class="td-num pos">${fmtC(grandIncome)}</td>
+            <td class="td-num neg">${grandUpkeep>0?CREDIT_SVG+'('+fmt(grandUpkeep)+')':'<span class="dim">-</span>'}</td>
+            <td class="td-num" style="color:${grandNet<0?'var(--neg)':'var(--pos)'}">${gNetSign}${CREDIT_SVG}${fmt(grandNet)}</td>
+            <td class="td-num">${fmtCredits(grandProj)}</td>
+          </tr>
+        </tbody>
+      </table></div>
+    </div>`;
+  }
+
   const tidInc='income'; const tidProd='production';
   const incomeRows = _sortData(p.income||[],tidInc).map(r => `<tr>
     <td>${esc(r.name)}</td>
@@ -2822,7 +2882,7 @@ function renderFinance() {
   </tr>`).join('');
 
 
-  return `
+  return adminOverview + `
   <div class="grid3" style="margin-bottom:16px">
     <div class="stat-box"><div class="label">Current Balance</div><div class="value ${bal<0?'neg':''}">${fmtC(bal)}</div></div>
     <div class="stat-box"><div class="label">Net per Cycle</div><div class="value ${net<0?'neg':'pos'}">${net>=0?'+':'-'}${CREDIT_SVG}${fmt(Math.abs(net))}</div></div>

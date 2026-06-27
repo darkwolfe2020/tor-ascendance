@@ -1511,7 +1511,7 @@ function renderDashboard() {
   const formations = p.formations||[];
   const assets = p.assets||[];
   const totalDeployedCount = formations.reduce((s,f)=>s+totalDeployed(f),0) + assets.reduce((s,a)=>s+totalDeployed(a),0);
-  const totalUndeployed = formations.reduce((s,f)=>s+(Number(f.undeployed)||0),0) + assets.reduce((s,a)=>s+(Number(a.undeployed)||0),0);
+  const totalUndeployed = formations.reduce((s,f)=>s+Math.max(0,(f.quantity||0)-totalDeployed(f)),0) + assets.reduce((s,a)=>s+Math.max(0,(a.quantity||0)-totalDeployed(a)),0);
 
   return `
   <div class="grid4" style="margin-bottom:16px">
@@ -1558,14 +1558,14 @@ function renderDashboard() {
       <div>
         <div style="color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Formations (${formations.length})</div>
         <table><thead><tr><th>Name</th><th>Qty</th><th>Deployed</th><th>Location(s)</th></tr></thead><tbody>
-          ${formations.slice(0,6).map(f=>{const td=totalDeployed(f);const locs=(f.deployments||[]).filter(d=>d.qty>0).map(d=>d.location||'?').join(', ')||'—';return`<tr><td>${esc(f.name)}</td><td class="dim">${f.quantity}</td><td><span class="badge-deployed">${td}</span><span class="dim"> / ${f.undeployed}</span></td><td class="dim" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(locs)}</td></tr>`;}).join('')}
+          ${formations.slice(0,6).map(f=>{const td=totalDeployed(f);const ud=Math.max(0,(f.quantity||0)-td);const locs=(f.deployments||[]).filter(d=>d.qty>0).map(d=>d.location||'?').join(', ')||'—';return`<tr><td>${esc(f.name)}</td><td class="dim">${f.quantity}</td><td><span class="badge-deployed">${td}</span><span class="dim"> / ${ud}</span></td><td class="dim" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(locs)}</td></tr>`;}).join('')}
           ${formations.length===0?'<tr class="empty-row"><td colspan="4">None</td></tr>':''}
         </tbody></table>
       </div>
       <div>
         <div style="color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Key Assets (${assets.length})</div>
         <table><thead><tr><th>Name</th><th>Qty</th><th>Deployed</th><th>Location(s)</th></tr></thead><tbody>
-          ${assets.slice(0,6).map(a=>{const td=totalDeployed(a);const locs=(a.deployments||[]).filter(d=>d.qty>0).map(d=>d.location||'?').join(', ')||'—';return`<tr><td>${esc(a.name)}</td><td class="dim">${a.quantity}</td><td><span class="badge-deployed">${td}</span><span class="dim"> / ${a.undeployed}</span></td><td class="dim" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(locs)}</td></tr>`;}).join('')}
+          ${assets.slice(0,6).map(a=>{const td=totalDeployed(a);const ud=Math.max(0,(a.quantity||0)-td);const locs=(a.deployments||[]).filter(d=>d.qty>0).map(d=>d.location||'?').join(', ')||'—';return`<tr><td>${esc(a.name)}</td><td class="dim">${a.quantity}</td><td><span class="badge-deployed">${td}</span><span class="dim"> / ${ud}</span></td><td class="dim" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(locs)}</td></tr>`;}).join('')}
           ${assets.length===0?'<tr class="empty-row"><td colspan="4">None</td></tr>':''}
         </tbody></table>
       </div>
@@ -2399,7 +2399,7 @@ function renderFormationsTab(p) {
       <div class="deploy-ctrl">
         <span class="badge-deployed" title="Deployed">${totalDeployed(f)}</span>
         <span class="sep">/</span>
-        <span class="badge-undeployed" title="Undeployed">${f.undeployed}</span>
+        <span class="badge-undeployed" title="Undeployed">${Math.max(0,(f.quantity||0)-totalDeployed(f))}</span>
         ${pendingDepRequest('formations',f.id)?`<span class="tag tag-gold" style="font-size:10px">⏳ Pending</span><button class="btn btn-red btn-sm" onclick="cancelDeployByItem('formations','${f.id}')">✕</button>`:`<button class="btn btn-ghost btn-sm" onclick="showDeployModal('formations','${f.id}')">Reposition</button>`}
       </div>
       ${deploymentSummary(f)}
@@ -2431,7 +2431,7 @@ function renderAssetsTab(p) {
       <div class="deploy-ctrl">
         <span class="badge-deployed" title="Deployed">${totalDeployed(a)}</span>
         <span class="sep">/</span>
-        <span class="badge-undeployed" title="Undeployed">${a.undeployed}</span>
+        <span class="badge-undeployed" title="Undeployed">${Math.max(0,(a.quantity||0)-totalDeployed(a))}</span>
         ${pendingDepRequest('assets',a.id)?`<span class="tag tag-gold" style="font-size:10px">⏳ Pending</span><button class="btn btn-red btn-sm" onclick="cancelDeployByItem('assets','${a.id}')">✕</button>`:`<button class="btn btn-ghost btn-sm" onclick="showDeployModal('assets','${a.id}')">Reposition</button>`}
       </div>
       ${deploymentSummary(a)}
@@ -2468,7 +2468,7 @@ function renderShipsTab(p) {
         <div class="deploy-ctrl">
           <span class="badge-deployed" title="Deployed">${totalDeployed(s)}</span>
           <span class="sep">/</span>
-          <span class="badge-undeployed" title="Undeployed">${s.undeployed}</span>
+          <span class="badge-undeployed" title="Undeployed">${Math.max(0,(s.quantity||0)-totalDeployed(s))}</span>
           ${pendingDepRequest('ships',s.id)?`<span class="tag tag-gold" style="font-size:10px">⏳ Pending</span><button class="btn btn-red btn-sm" onclick="cancelDeployByItem('ships','${s.id}')">✕</button>`:`<button class="btn btn-ghost btn-sm" onclick="showDeployModal('ships','${s.id}')">Reposition</button>`}
         </div>
         ${deploymentSummary(s)}
@@ -2539,7 +2539,7 @@ function renderMiscTab(p) {
       <div class="deploy-ctrl">
         <span class="badge-deployed" title="Deployed">${totalDeployed(m)}</span>
         <span class="sep">/</span>
-        <span class="badge-undeployed" title="Undeployed">${m.undeployed}</span>
+        <span class="badge-undeployed" title="Undeployed">${Math.max(0,(m.quantity||0)-totalDeployed(m))}</span>
         ${pendingDepRequest('miscItems',m.id)?`<span class="tag tag-gold" style="font-size:10px">⏳ Pending</span><button class="btn btn-red btn-sm" onclick="cancelDeployByItem('miscItems','${m.id}')">✕</button>`:`<button class="btn btn-ghost btn-sm" onclick="showDeployModal('miscItems','${m.id}')">Reposition</button>`}
       </div>
       ${deploymentSummary(m)}
@@ -4050,6 +4050,9 @@ function adminUpdateCell(pid, listKey, idx, field, value) {
   const isNum = ['quantity','deployed','undeployed','strength','number','adultPop','gdpPerCapita','taxPercent'].includes(field);
   const oldVal = item[field];
   item[field] = isNum ? unNum(value) : value;
+  if(field === 'quantity' && item.deployments !== undefined) {
+    item.undeployed = Math.max(0, item[field] - totalDeployed(item));
+  }
   if(field !== 'imageUrl') {
     const oldStr = String(oldVal ?? '');
     const newStr = isNum ? String(item[field]) : value;

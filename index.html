@@ -1254,6 +1254,13 @@ function deploymentSummary(item) {
   return deps.map(d=>`<div style="font-size:11px;line-height:1.7;color:var(--text2)"><span class="badge-deployed" style="font-size:10px">${d.qty}</span> <span class="loc-chip" style="font-size:10px;padding:1px 7px">📍 ${esc(d.location||'Unknown')}</span>${d.note?` <em style="font-size:10px">${esc(d.note)}</em>`:''}</div>`).join('');
 }
 function calcBalance(player) { return Number(player.finances.balance) || 0; }
+function _playerLog(pid, type, action) {
+  const p = STATE.players[pid];
+  if(!p) return;
+  p._log = p._log || [];
+  p._log.push({ id: newId(), ts: Date.now(), type, action });
+  if(p._log.length > 500) p._log = p._log.slice(-500);
+}
 // Format strength: "10 men" for qty 1, "10 ea · 50 total" for qty > 1
 function fmtStr(strength, qty) {
   if(!strength) return '—';
@@ -1350,6 +1357,7 @@ function render() {
       <button class="nav-btn ${currentView==='deployed'?'active':''}" onclick="navigate('deployed')">Deployed Forces</button>
       <button class="nav-btn ${currentView==='finance'?'active':''}" onclick="navigate('finance')">Finance</button>
       <button class="nav-btn ${currentView==='shop'?'active':''}" onclick="navigate('shop')">Shop</button>
+      <button class="nav-btn ${currentView==='log'?'active':''}" onclick="navigate('log')">Log</button>
       <button class="nav-btn ${currentView==='todo'?'active':''}" onclick="navigate('todo')">GM Tasks</button>
     `;
   } else if(isAdmin) {
@@ -1379,6 +1387,7 @@ function render() {
     case 'deployed': _viewHtml = renderDeployed(); break;
     case 'finance': _viewHtml = renderFinance(); break;
     case 'shop': _viewHtml = renderShop(); break;
+    case 'log': _viewHtml = renderLog(); break;
     case 'todo': _viewHtml = renderTodo(); break;
     case 'admin-overview': _viewHtml = renderAdminOverview(); break;
     case 'admin-players': _viewHtml = renderAdminPlayers(); break;
@@ -1829,12 +1838,12 @@ function renderApprenticesSection(p) {
   const tid='apprenticesSec';
   const rows = _sortData(p.apprentices||[], tid).map(a=>`<tr>
     <td class="gold">${esc(a.name)}</td><td>${esc(a.form)}</td>
-    <td><span class="tag tag-red">${esc(a.rank)}</span></td>
+    <td><span class="tag tag-red">${esc(a.rank)}</span>${a.relationship?` <span class="tag tag-grey">${esc(a.relationship)}</span>`:''}</td>
     <td>${esc(a.specialization)}</td>
     <td class="dim" style="max-width:280px">${esc(a.description)}</td>
   </tr>`).join('');
   return `<div class="card">
-    <div class="card-title">Apprentices</div>
+    <div class="card-title">Sith</div>
     <div class="tbl-wrap"><table>
       <thead><tr>${_th(tid,'name','Name')}<th>Form</th>${_th(tid,'rank','Rank')}${_th(tid,'specialization','Specialization')}<th>Description</th></tr></thead>
       <tbody>${rows}</tbody>
@@ -1886,7 +1895,7 @@ function renderAssets() {
   if(!p) return '';
 
   const tabs = ['formations','assets','ships','structures','misc','apprentices','notables','population','artifacts'];
-  const tabLabels = { formations:'Formations', assets:'Assets', ships:'Ships', structures:'Structures', misc:'Misc Items', apprentices:'Apprentices', notables:'Notables', population:'Population', artifacts:'Artifacts' };
+  const tabLabels = { formations:'Formations', assets:'Assets', ships:'Ships', structures:'Structures', misc:'Misc Items', apprentices:'Sith', notables:'Notables', population:'Population', artifacts:'Artifacts' };
 
   return `
   <div class="tab-bar">
@@ -2791,8 +2800,8 @@ function _alpOpts(pid, idx, text) {
 }
 function _alpOpenFn(pid, idx) { const k=_alpKey(pid,idx); _alpOpen=k; const dd=document.getElementById('alp-dd-'+k); if(dd) dd.innerHTML=_alpOpts(pid,idx,_alpSearch[k]||''); }
 function _alpFilter(pid, idx, v) { const k=_alpKey(pid,idx); _alpSearch[k]=v; _alpOpen=k; const dd=document.getElementById('alp-dd-'+k); if(dd) dd.innerHTML=_alpOpts(pid,idx,v); }
-function _alpSelect(pid, idx, loc) { const k=_alpKey(pid,idx); _alpOpen=null; _alpSearch[k]=''; if(STATE.players[pid]?.structures) STATE.players[pid].structures[idx].location=loc; saveState(); render(); }
-function _alpClear(pid, idx) { const k=_alpKey(pid,idx); _alpOpen=null; _alpSearch[k]=''; if(STATE.players[pid]?.structures) STATE.players[pid].structures[idx].location=''; saveState(); render(); }
+function _alpSelect(pid, idx, loc) { const k=_alpKey(pid,idx); _alpOpen=null; _alpSearch[k]=''; if(STATE.players[pid]?.structures) { const s=STATE.players[pid].structures[idx]; const old=s.location||''; s.location=loc; if(old!==loc) _playerLog(pid,'structures',`Structure "${s.name||'row'}" — location set to "${loc}"`); } saveState(); render(); }
+function _alpClear(pid, idx) { const k=_alpKey(pid,idx); _alpOpen=null; _alpSearch[k]=''; if(STATE.players[pid]?.structures) { const s=STATE.players[pid].structures[idx]; const old=s.location||''; s.location=''; if(old) _playerLog(pid,'structures',`Structure "${s.name||'row'}" — location cleared (was "${old}")`); } saveState(); render(); }
 function _alpCellHtml(pid, idx, loc) {
   const k = _alpKey(pid,idx);
   return loc
@@ -3053,7 +3062,7 @@ function renderApprentices() {
   const p = STATE.players[currentPlayer];
   if(!p) return '<div class="card">No player data.</div>';
   const apps = p.apprentices||[];
-  if(!apps.length) return `<div class="card"><div class="card-title">Apprentices</div><div class="dim" style="padding:12px">No apprentices.</div></div>`;
+  if(!apps.length) return `<div class="card"><div class="card-title">Sith</div><div class="dim" style="padding:12px">No entries.</div></div>`;
 
   const ranks = [...new Set(apps.map(a=>a.rank||'Unknown'))];
   const rankCounts = ranks.map(r=>({ rank:r, count:apps.filter(a=>(a.rank||'Unknown')===r).length }));
@@ -3074,6 +3083,7 @@ function renderApprentices() {
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
             <span style="color:var(--gold);font-size:15px;font-weight:700">${esc(a.name)}</span>
             <span class="tag tag-red">${esc(a.rank||'')}</span>
+            ${a.relationship?`<span class="tag tag-grey">${esc(a.relationship)}</span>`:''}
           </div>
           <div style="font-size:12px;margin-bottom:8px;display:flex;gap:16px;flex-wrap:wrap">
             ${a.form?`<span><span style="color:var(--text2);text-transform:uppercase;font-size:10px;letter-spacing:1px">Form </span>${esc(a.form)}</span>`:''}
@@ -3116,11 +3126,11 @@ function renderApprentices() {
 
   return `
   <div class="grid${Math.min(rankCounts.length+1,4)}" style="margin-bottom:16px">
-    <div class="stat-box"><div class="label">Total Apprentices</div><div class="value">${apps.length}</div></div>
+    <div class="stat-box"><div class="label">Total Sith</div><div class="value">${apps.length}</div></div>
     ${rankCounts.map(rc=>`<div class="stat-box"><div class="label">${esc(rc.rank)}</div><div class="value">${rc.count}</div></div>`).join('')}
   </div>
   <div class="card">
-    <div class="card-title">Apprentices</div>
+    <div class="card-title">Sith</div>
     <div style="display:flex;flex-direction:column;gap:10px">${cards}</div>
   </div>`;
 }
@@ -3283,6 +3293,44 @@ function saveTodoNote() {
   saveState();
   notify('Tasks saved.');
 }
+function renderLog() {
+  const p = STATE.players[currentPlayer];
+  if(!p) return '';
+  const logs = (p._log||[]).slice().reverse();
+  if(!logs.length) return `<div class="card"><div class="dim" style="padding:24px;text-align:center">No activity recorded yet. Changes made by the admin will appear here.</div></div>`;
+
+  const TYPE_COLOR = { finance:'var(--gold)', character:'#7ec8e3', purchase:'var(--pos)', formations:'#a78bfa', assets:'#a78bfa', ships:'#a78bfa', structures:'#a78bfa', miscItems:'var(--text2)', trophies:'var(--text2)', apprentices:'#f9a8d4', notables:'#f9a8d4', artifacts:'var(--gold)', move:'var(--text2)' };
+  const TYPE_LABEL = { finance:'Finance', character:'Character', purchase:'Purchase', formations:'Formations', assets:'Assets', ships:'Ships', structures:'Structures', miscItems:'Misc', trophies:'Trophies', apprentices:'Sith', notables:'Notables', artifacts:'Artifacts', move:'Move' };
+
+  const byDate = {};
+  logs.forEach(e => {
+    const d = new Date(e.ts).toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+    (byDate[d] = byDate[d]||[]).push(e);
+  });
+
+  const sections = Object.entries(byDate).map(([date, entries]) => `
+    <div style="margin-bottom:20px">
+      <div style="font-size:11px;font-weight:700;color:var(--text2);letter-spacing:0.07em;text-transform:uppercase;padding-bottom:7px;border-bottom:1px solid var(--border);margin-bottom:10px">${date}</div>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        ${entries.map(e => {
+          const col = TYPE_COLOR[e.type]||'var(--text2)';
+          const lbl = TYPE_LABEL[e.type]||e.type;
+          const time = new Date(e.ts).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+          return `<div style="display:flex;align-items:center;gap:10px;padding:7px 10px;background:var(--bg3);border-radius:5px;border-left:3px solid ${col}">
+            <span style="font-size:11px;color:var(--text2);white-space:nowrap;flex-shrink:0;min-width:42px">${time}</span>
+            <span style="font-size:10px;border:1px solid ${col};color:${col};border-radius:3px;padding:1px 6px;white-space:nowrap;flex-shrink:0">${lbl}</span>
+            <span style="font-size:13px;color:var(--text);flex:1">${esc(e.action)}</span>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`).join('');
+
+  return `<div class="card">
+    <div class="card-title">Activity Log <span class="dim" style="font-weight:normal;font-size:13px">${logs.length} entr${logs.length===1?'y':'ies'}</span></div>
+    ${sections}
+  </div>`;
+}
+
 function renderTodo() {
   const p = STATE.players[currentPlayer];
   if(!p) return '';
@@ -3479,8 +3527,8 @@ function renderAdminPlayers() {
   let content = '<div class="dim" style="padding:20px">Select a player to edit.</div>';
   if(adminPlayerSelected && STATE.players[adminPlayerSelected]) {
     const p = STATE.players[adminPlayerSelected];
-    const tabList = ['character','finances','formations','assets','ships','structures','misc','income','populations','trophies','apprentices','notables','artifacts'];
-    const tabLabels = { character:'Character', finances:'Finances', formations:'Formations', assets:'Assets', ships:'Ships', structures:'Structures', misc:'Misc', income:'Income', populations:'Populations', trophies:'Trophies', apprentices:'Apprentices', notables:'Notables', artifacts:'Artifacts' };
+    const tabList = ['character','finances','formations','assets','ships','structures','misc','income','populations','trophies','apprentices','notables','artifacts','log'];
+    const tabLabels = { character:'Character', finances:'Finances', formations:'Formations', assets:'Assets', ships:'Ships', structures:'Structures', misc:'Misc', income:'Income', populations:'Populations', trophies:'Trophies', apprentices:'Sith', notables:'Notables', artifacts:'Artifacts', log:'Log' };
     content = `
       <div class="tab-bar" style="flex-wrap:wrap">
         ${tabList.map(t=>`<div class="tab ${adminPlayerTab===t?'active':''}" onclick="adminPlayerTab='${t}';render()" style="font-size:12px;padding:5px 10px">${tabLabels[t]}</div>`).join('')}
@@ -3498,6 +3546,7 @@ function renderAdminPlayers() {
       ${adminPlayerTab==='apprentices'?renderAdminApprenticeEdit(p):''}
       ${adminPlayerTab==='notables'?renderAdminNotablesEdit(p):''}
       ${adminPlayerTab==='artifacts'?renderAdminListEdit(p,'artifacts','Artifact Collection',['name','number','quality','description','effects']):''}
+      ${adminPlayerTab==='log'?(()=>{ const _cp=currentPlayer; currentPlayer=p.id; const h=renderLog(); currentPlayer=_cp; return h; })():''}
     `;
   }
 
@@ -3686,7 +3735,7 @@ function renderAdminApprenticeEdit(p) {
   const fields = ['name','rank','specialization','form','fightingStyle','description','equipment'];
   const labels = { name:'Name', rank:'Rank', specialization:'Spec', form:'Form', fightingStyle:'Fighting Style', description:'Description', equipment:'Equipment (one per line)' };
   return `<div class="card">
-    <div class="card-title">Apprentices (${list.length})
+    <div class="card-title">Sith (${list.length})
       <button class="btn btn-green btn-sm" onclick="adminAddRow('${p.id}','apprentices')">+ Add Row</button>
     </div>
     <div style="display:flex;flex-direction:column;gap:10px">
@@ -3702,6 +3751,13 @@ function renderAdminApprenticeEdit(p) {
             </div>
           </div>
           <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+            <div style="margin-bottom:6px">
+              <label style="font-size:10px;margin-bottom:2px;display:block">Type</label>
+              <select onchange="adminUpdateCell('${p.id}','apprentices',${idx},'relationship',this.value)" style="width:160px">
+                <option value="">—</option>
+                ${['Apprentice','Subordinate','Ally'].map(o=>`<option value="${o}"${row.relationship===o?' selected':''}>${o}</option>`).join('')}
+              </select>
+            </div>
             <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">
               ${fields.map(f=>`<div>
                 <label style="font-size:10px;margin-bottom:2px">${labels[f]}</label>
@@ -3861,11 +3917,17 @@ function adminUpdateCharArtRef(pid, idx, qty) {
 function saveAdminCharacter(pid) {
   const p = STATE.players[pid];
   if(!p) return;
+  const oldChar = { ...p.character };
   const fields = ['name','rank','age','species','ideology','archetype','lightsaberForm','fightingStyle','personality','background','notes'];
   fields.forEach(f => { const el = document.getElementById('ce-'+f); if(el) p.character[f] = el.value; });
   const equip = document.getElementById('ce-equipment');
   if(equip) p.character.equipment = equip.value.split('\n').map(s=>s.trim()).filter(Boolean);
   _flushCharSkills(pid);
+  const tracked = ['name','rank','age','species','ideology','archetype','lightsaberForm','fightingStyle'];
+  const changes = tracked.filter(f => (oldChar[f]||'') !== (p.character[f]||''));
+  if(changes.length) {
+    _playerLog(pid, 'character', 'Character updated: ' + changes.map(f=>`${f}: "${oldChar[f]||''}" → "${p.character[f]||''}"`).join('; '));
+  }
   saveState(); notify('Character saved.'); render();
 }
 
@@ -3885,7 +3947,11 @@ function renderAdminFinancesEdit(p) {
 }
 function saveAdminFinances(pid) {
   const p = STATE.players[pid];
+  const oldBal = p.finances.balance;
   p.finances.balance = unNum(document.getElementById('fin-balance').value);
+  if(oldBal !== p.finances.balance) {
+    _playerLog(pid, 'finance', `Balance set: ${fmt(oldBal)} → ${fmt(p.finances.balance)} credits`);
+  }
   saveState(); notify('Finances saved.'); render();
 }
 
@@ -3897,7 +3963,7 @@ const ADMIN_LIST_FIELDS = {
   structures: ['name','quantity','category','description','location','locationNote','misc','imageUrl'],
   miscItems:  ['name','quantity','category','description','misc','imageUrl'],
   trophies:   ['name','number','aura','description','conflict','claimedFrom'],
-  apprentices:['name','form','rank','specialization','description'],
+  apprentices:['name','form','rank','specialization','description','relationship'],
   artifacts:  ['name','number','quality','description','effects'],
 };
 function renderAdminListEdit(p, listKey, title, fields) {
@@ -3970,6 +4036,7 @@ function adminMoveRow(pid, fromList, idx, toList) {
   p[fromList].splice(idx, 1);
   p[toList] = p[toList]||[];
   p[toList].push(moved);
+  _playerLog(pid, 'move', `"${moved.name}" moved: ${MOVABLE_LISTS[fromList]} → ${MOVABLE_LISTS[toList]}`);
   saveState();
   notify(`"${moved.name}" moved to ${MOVABLE_LISTS[toList]}`);
   render();
@@ -3980,11 +4047,24 @@ function adminUpdateCell(pid, listKey, idx, field, value) {
   if(!p||!p[listKey]) return;
   const item = p[listKey][idx];
   if(!item) return;
-  item[field] = ['quantity','deployed','undeployed','strength','number','adultPop','gdpPerCapita','taxPercent'].includes(field) ? unNum(value) : value;
+  const isNum = ['quantity','deployed','undeployed','strength','number','adultPop','gdpPerCapita','taxPercent'].includes(field);
+  const oldVal = item[field];
+  item[field] = isNum ? unNum(value) : value;
+  if(field !== 'imageUrl') {
+    const oldStr = String(oldVal ?? '');
+    const newStr = isNum ? String(item[field]) : value;
+    if(oldStr !== newStr && !(oldStr === '' && newStr === '0')) {
+      const listLabel = MOVABLE_LISTS[listKey] || listKey;
+      const itemName = item.name || `row ${idx+1}`;
+      _playerLog(pid, listKey, `${listLabel} "${itemName}": ${field} changed from "${oldStr}" to "${newStr}"`);
+    }
+  }
   saveState();
 }
 function adminDeleteRow(pid, listKey, idx) {
   if(!confirm('Delete this row?')) return;
+  const item = (STATE.players[pid][listKey]||[])[idx];
+  _playerLog(pid, listKey, `Removed from ${MOVABLE_LISTS[listKey]||listKey}: "${item?.name||'entry'}"`);
   STATE.players[pid][listKey].splice(idx,1);
   saveState(); notify('Row deleted.'); render();
 }
@@ -4003,6 +4083,7 @@ function adminAddRow(pid, listKey) {
   }
   STATE.players[pid][listKey] = STATE.players[pid][listKey]||[];
   STATE.players[pid][listKey].push(newRow);
+  _playerLog(pid, listKey, `Added new entry to ${MOVABLE_LISTS[listKey]||listKey}`);
   saveState(); render();
 }
 
@@ -4033,14 +4114,19 @@ function adminAddIncomeRow(pid) {
   const row = { id:newId(), name:'New Source', quantity:1, income:0, upkeep:0, net:0, totalNet:0 };
   STATE.players[pid].income = STATE.players[pid].income||[];
   STATE.players[pid].income.push(row);
+  _playerLog(pid, 'finance', 'Added new income/upkeep row');
   saveState(); render();
 }
 function adminUpdateIncomeRow(pid, idx, field, value) {
   const r = STATE.players[pid].income[idx];
   if(!r) return;
+  const oldVal = r[field];
   r[field] = unNum(value);
   r.net = r.income - r.upkeep;
   r.totalNet = r.net * r.quantity;
+  if(String(oldVal ?? '') !== String(r[field])) {
+    _playerLog(pid, 'finance', `Income "${r.name||'row'}" — ${field} changed: ${fmt(oldVal)} → ${fmt(r[field])}`);
+  }
   saveState(); render();
 }
 
@@ -4513,12 +4599,14 @@ function approveRequest(id) {
     notify(`Added upkeep: ${fmtC(wageVal)}/unit × ${req.quantity} = ${fmtC(wageVal*req.quantity)}/period for ${p.displayName}.`);
   }
 
+  _playerLog(req.playerId, 'purchase', `Purchase approved: ${req.quantity}× ${req.itemName} — ${fmt(req.totalCost)} credits deducted`);
   saveState(); render();
 }
 function denyRequest(id) {
   const req = STATE.purchaseRequests.find(r=>r.id===id);
   if(!req) return;
   req.status = 'denied';
+  _playerLog(req.playerId, 'purchase', `Purchase denied: ${req.quantity}× ${req.itemName}`);
   saveState(); notify('Request denied.'); render();
 }
 function addAdminNote(id) {
@@ -4942,7 +5030,9 @@ function doAdjustFunds(pid) {
   const p = STATE.players[pid];
   const amt = parseFloat(document.getElementById('adj-amount').value)||0;
   if(amt===0) { notify('Amount cannot be zero', true); return; }
+  const reason = document.getElementById('adj-reason').value.trim();
   p.finances.balance += amt;
+  _playerLog(pid, 'finance', `Funds adjusted: ${amt>=0?'+':''}${fmt(amt)} credits${reason?' — '+reason:''}. New balance: ${fmt(p.finances.balance)}`);
   document.querySelector('.modal-overlay').remove();
   saveState(); notify(`${amt>=0?'+':''}${fmt(amt)} applied to ${p.displayName}. New balance: ${fmt(p.finances.balance)}`); render();
 }

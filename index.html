@@ -2933,7 +2933,7 @@ function renderPopulation() {
   let totalPop=0, totalGdp=0, totalTax=0;
   const enriched = pops.map(row=>{
     const gdp = (row.gdpPerCapita||0) * (row.adultPop||0);
-    const tax = Math.round((row.taxPercent||0) / 100 * gdp);
+    const tax = Math.round((row.taxPercent||0) / 100 * gdp / 12);
     totalPop += (row.adultPop||0); totalGdp += gdp; totalTax += tax;
     return {...row, _gdp:gdp, _tax:tax};
   });
@@ -2954,7 +2954,7 @@ function renderPopulation() {
   <div class="grid3" style="margin-bottom:16px">
     <div class="stat-box"><div class="label">Total Population</div><div class="value">${fmt(totalPop)}</div></div>
     <div class="stat-box"><div class="label">Total GDP</div><div class="value">${fmtC(totalGdp)}</div></div>
-    <div class="stat-box"><div class="label">Total Tax Income</div><div class="value pos">${fmtC(totalTax)}</div></div>
+    <div class="stat-box"><div class="label">Total Tax / Month</div><div class="value pos">${fmtC(totalTax)}</div></div>
   </div>
   <div class="card">
     <div class="card-title">Population Centers</div>
@@ -2977,7 +2977,7 @@ function renderPopulation() {
           ${_th(tid,'gdpPerCapita','GDP/Capita','class="td-num"')}
           ${_th(tid,'_gdp','GDP','class="td-num"')}
           ${_th(tid,'taxPercent','Tax%','class="td-num"')}
-          ${_th(tid,'_tax','Tax Income','class="td-num"')}
+          ${_th(tid,'_tax','Tax / Month','class="td-num"')}
           <th>Additional Info</th>
         </tr></thead>
         <tbody>${rows}</tbody>
@@ -4155,13 +4155,13 @@ function renderAdminPopEdit(p) {
         <th>Name</th><th>Population</th><th>Loyalty</th><th>GDP/Capita</th>
         <th style="color:var(--text2)">GDP (calc)</th>
         <th>Tax%</th>
-        <th style="color:var(--text2)">Tax Income (calc)</th>
+        <th style="color:var(--text2)">Tax / Month (calc)</th>
         <th>Additional Info</th><th></th>
       </tr></thead>
       <tbody>
         ${list.map((row,idx)=>{
           const gdp=(row.gdpPerCapita||0)*(row.adultPop||0);
-          const tax=Math.round((row.taxPercent||0)/100*gdp);
+          const tax=Math.round((row.taxPercent||0)/100*gdp/12);
           return `<tr>
             <td><textarea class="admin-ta" onfocus="adminTaFocus(this)" onblur="adminTaBlur(this)" onchange="adminUpdateCell('${p.id}','populations',${idx},'name',this.value)">${esc(row.name||'')}</textarea></td>
             <td><input type="text" value="${fmtNum(row.adultPop||0)}" oninput="numInput(this)" inputmode="numeric" onchange="adminUpdateCell('${p.id}','populations',${idx},'adultPop',this.value)"></td>

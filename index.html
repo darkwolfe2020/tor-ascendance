@@ -3307,8 +3307,8 @@ function renderLog() {
   const logs = (p._log||[]).slice().reverse();
   if(!logs.length) return `<div class="card"><div class="dim" style="padding:24px;text-align:center">No activity recorded yet. Changes made by the admin will appear here.</div></div>`;
 
-  const TYPE_COLOR = { finance:'var(--gold)', character:'#7ec8e3', purchase:'var(--pos)', formations:'#a78bfa', assets:'#a78bfa', ships:'#a78bfa', structures:'#a78bfa', miscItems:'var(--text2)', trophies:'var(--text2)', apprentices:'#f9a8d4', notables:'#f9a8d4', artifacts:'var(--gold)', move:'var(--text2)' };
-  const TYPE_LABEL = { finance:'Finance', character:'Character', purchase:'Purchase', formations:'Formations', assets:'Assets', ships:'Ships', structures:'Structures', miscItems:'Misc', trophies:'Trophies', apprentices:'Sith', notables:'Notables', artifacts:'Artifacts', move:'Move' };
+  const TYPE_COLOR = { finance:'var(--gold)', character:'#7ec8e3', purchase:'var(--pos)', deployment:'#38bdf8', formations:'#a78bfa', assets:'#a78bfa', ships:'#a78bfa', structures:'#a78bfa', miscItems:'var(--text2)', trophies:'var(--text2)', apprentices:'#f9a8d4', notables:'#f9a8d4', artifacts:'var(--gold)', move:'var(--text2)' };
+  const TYPE_LABEL = { finance:'Finance', character:'Character', purchase:'Purchase', deployment:'Deployment', formations:'Formations', assets:'Assets', ships:'Ships', structures:'Structures', miscItems:'Misc', trophies:'Trophies', apprentices:'Sith', notables:'Notables', artifacts:'Artifacts', move:'Move' };
 
   const byDate = {};
   logs.forEach(e => {
@@ -4637,9 +4637,10 @@ function approveDeployRequest(id) {
   const item = list.find(x=>x.id===req.itemId);
   if(!item) { notify('Unit not found', true); return; }
   item.deployments = req.proposedDeployments;
-  item.undeployed = req.proposedUndeployed;
+  item.undeployed = Math.max(0, (item.quantity||0) - totalDeployed(item));
   if(req.proposedMisc !== undefined) item.misc = req.proposedMisc;
   req.status = 'approved';
+  _playerLog(req.playerId, 'deployment', `Redeployment approved: ${req.itemName}`);
   saveState();
   notify(`Redeployment approved for ${req.itemName}.`);
   render();
@@ -4649,6 +4650,7 @@ function denyDeployRequest(id) {
   const req = (STATE.deploymentRequests||[]).find(r=>r.id===id);
   if(!req) return;
   req.status = 'denied';
+  _playerLog(req.playerId, 'deployment', `Redeployment denied: ${req.itemName}`);
   saveState();
   notify('Redeployment request denied.');
   render();

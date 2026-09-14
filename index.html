@@ -251,6 +251,9 @@
     /* --- Location dropdown --- */
     .loc-dd { max-width: calc(100vw - 40px); }
 
+    /* --- Fixed-layout tables: unpin from 100% width so tbl-wrap can scroll them --- */
+    .tbl-wrap table { table-layout: auto !important; width: auto !important; min-width: 480px; }
+
     /* --- World accordion --- */
     .world-hdr { padding: 10px 12px; }
     .world-hdr .world-name { font-size: 12px; }

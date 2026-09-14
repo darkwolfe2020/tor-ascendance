@@ -4737,6 +4737,8 @@ function denyDeployRequest(id) {
 // ADMIN DEPLOYMENTS
 // ============================================================
 let _adminDepSel = null; // currently selected location key, e.g. 'planet::Dromund Kaas' or 'struct::Main Base::pid'
+let _adminDepHideEmpty = false;
+function _adminDepToggleHide() { _adminDepHideEmpty = !_adminDepHideEmpty; document.getElementById('app').innerHTML = renderAdminDeploy(); }
 
 function _getAllGenericLocs() {
   // All managed locations (admin sees all)
@@ -4835,38 +4837,49 @@ function renderAdminDeploy() {
   const structs = _getAllStructLocs();
   const customSet = new Set(STATE.customLocations||[]);
 
+  // Pre-compute which locations have any forces (for the hide-empty filter)
+  const genericWithForces = new Set(generic.filter(loc => _getForcesAt('generic', loc).length > 0));
+  const structsWithForces = new Set(structs.filter(s => _getForcesAt('struct', s.name).length > 0).map(s => s.name));
+
+  const filteredGeneric = _adminDepHideEmpty ? generic.filter(loc => genericWithForces.has(loc)) : generic;
+  const filteredStructs = _adminDepHideEmpty ? structs.filter(s => structsWithForces.has(s.name)) : structs;
+
   // Sidebar
   const locIndex = Object.fromEntries((STATE.locations||[]).map(l=>[l.name,l]));
-  const genericItems = generic.map(loc=>{
+  const genericItems = filteredGeneric.map(loc=>{
     const key='generic::'+loc;
     const sel=_adminDepSel===key;
     const cls = locIndex[loc]?.classification;
     const icon = LOC_ICON[cls]||'⭐';
+    const hasForces = genericWithForces.has(loc);
     return `<div onclick="adminSelectLoc('${key.replace(/'/g,"\\'")}');"
       style="display:flex;align-items:center;justify-content:space-between;padding:5px 10px;border-radius:4px;cursor:pointer;background:${sel?'var(--bg3)':'transparent'};border:1px solid ${sel?'var(--gold)':'transparent'}">
       <span style="color:${sel?'var(--gold)':'var(--text)'}">${icon} ${esc(loc)}</span>
-      ${cls?`<span class="dim" style="font-size:10px">${cls}</span>`:''}
+      <span style="display:flex;align-items:center;gap:4px">${hasForces?`<span style="width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0" title="Has forces"></span>`:''} ${cls?`<span class="dim" style="font-size:10px">${cls}</span>`:''}</span>
     </div>`;
   }).join('');
 
-  const structItems = structs.map(s=>{
+  const structItems = filteredStructs.map(s=>{
     const key='struct::'+s.name;
     const sel=_adminDepSel===key;
+    const hasForces = structsWithForces.has(s.name);
     return `<div onclick="adminSelectLoc('${key.replace(/'/g,"\\'")}');"
       style="padding:5px 10px;border-radius:4px;cursor:pointer;background:${sel?'var(--bg3)':'transparent'};border:1px solid ${sel?'var(--gold)':'transparent'}">
-      <div style="color:${sel?'var(--gold)':'var(--text)'}">🏛 ${esc(s.name)}</div>
+      <div style="display:flex;align-items:center;gap:5px;color:${sel?'var(--gold)':'var(--text)'}">🏛 ${esc(s.name)}${hasForces?`<span style="width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0" title="Has forces"></span>`:''}</div>
       <div class="dim" style="font-size:11px">${esc(s.playerName)}${s.location?' · '+esc(s.location):''}${s.locationNote?' — '+esc(s.locationNote):''}</div>
     </div>`;
   }).join('');
 
+  const hideEmptyBtn = `<button class="btn btn-sm" style="font-size:10px;padding:2px 7px;background:${_adminDepHideEmpty?'var(--green)':'transparent'};border:1px solid ${_adminDepHideEmpty?'var(--green)':'var(--border)'};color:${_adminDepHideEmpty?'#fff':'var(--text2)'}" onclick="_adminDepToggleHide()" title="${_adminDepHideEmpty?'Show all locations':'Hide empty locations'}">${_adminDepHideEmpty?'● Occupied only':'○ Hide empty'}</button>`;
+
   const sidebar = `<div style="width:220px;flex-shrink:0">
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 10px 6px">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 10px 4px;flex-wrap:wrap;gap:4px">
       <span style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text2)">Locations</span>
-      <button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 6px" onclick="navigate('admin-locations')">Manage</button>
+      <div style="display:flex;gap:4px">${hideEmptyBtn}<button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 6px" onclick="navigate('admin-locations')">Manage</button></div>
     </div>
-    ${genericItems||'<div class="dim" style="padding:4px 10px;font-size:12px">None</div>'}
+    ${filteredGeneric.length ? genericItems : '<div class="dim" style="padding:4px 10px;font-size:12px">'+ (_adminDepHideEmpty?'No occupied locations.':'None') +'</div>'}
     <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text2);padding:10px 10px 6px;border-top:1px solid var(--border);margin-top:4px">🏛 Structures</div>
-    ${structItems||'<div class="dim" style="padding:4px 10px;font-size:12px">No structures</div>'}
+    ${filteredStructs.length ? structItems : '<div class="dim" style="padding:4px 10px;font-size:12px">'+ (_adminDepHideEmpty?'No occupied structures.':'No structures') +'</div>'}
   </div>`;
 
   // Main panel

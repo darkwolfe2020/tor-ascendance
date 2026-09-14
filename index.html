@@ -358,6 +358,14 @@ function saveState() {
             console.log('Merged', newReqs.length, 'new purchase request(s) from remote before admin write.');
           }
         }
+        if(remoteState?.deploymentRequests) {
+          const localDepIds = new Set((STATE.deploymentRequests||[]).map(r=>r.id));
+          const newDepReqs = remoteState.deploymentRequests.filter(r=>!localDepIds.has(r.id));
+          if(newDepReqs.length) {
+            STATE.deploymentRequests = [...(STATE.deploymentRequests||[]), ...newDepReqs];
+            console.log('Merged', newDepReqs.length, 'new deployment request(s) from remote before admin write.');
+          }
+        }
       }
       await sb.from('game_state').upsert({ id: 'main', data: STATE, updated_at: new Date().toISOString() });
       _initRemoteTs = STATE._savedAt; // advance our baseline to what we just wrote

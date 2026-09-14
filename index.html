@@ -184,6 +184,78 @@
   .struct-info { background:var(--bg); border-radius:4px; padding:8px 12px; margin-bottom:8px; font-size:12px; border-left:3px solid var(--blue); }
   .loyalty-high { color: var(--green); } .loyalty-medium { color: var(--gold); } .loyalty-low { color: var(--red2); }
 
+  /* ============================================================
+     RESPONSIVE — MOBILE (≤700px)
+     ============================================================ */
+  @media (max-width: 700px) {
+    /* --- Topbar --- */
+    #topbar { flex-wrap: wrap; height: auto; padding: 8px 12px 4px; gap: 6px; }
+    #topbar .logo { font-size: 13px; letter-spacing: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: calc(100% - 120px); }
+    #nav-links { order: 10; flex-basis: 100%; overflow-x: auto; scrollbar-width: none; padding-bottom: 4px; gap: 2px; }
+    #nav-links::-webkit-scrollbar { display: none; }
+    .nav-btn { white-space: nowrap; flex-shrink: 0; font-size: 12px; padding: 5px 9px; }
+    #topbar .right { gap: 5px; margin-left: auto; }
+    #player-badge { font-size: 12px; max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* --- App container --- */
+    #app { padding: 10px 10px; }
+
+    /* --- Grids (override inline styles too) --- */
+    .grid2, .grid3, .grid4 { grid-template-columns: 1fr !important; }
+
+    /* --- Cards --- */
+    .card { padding: 10px; }
+    .card-title { font-size: 12px; flex-wrap: wrap; gap: 6px; }
+
+    /* --- Tables --- */
+    table { font-size: 12px; }
+    th { padding: 5px 6px; }
+    td { padding: 4px 6px; }
+
+    /* --- Tab bars (horizontal scroll, no wrap) --- */
+    .tab-bar { overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; padding-bottom: 2px; }
+    .tab-bar::-webkit-scrollbar { display: none; }
+    .tab { white-space: nowrap; flex-shrink: 0; padding: 7px 12px; font-size: 12px; }
+
+    /* --- Modals --- */
+    .modal { min-width: 0; width: 96vw; padding: 14px; }
+
+    /* --- Login --- */
+    #login-page h1 { font-size: 20px; letter-spacing: 2px; text-align: center; }
+    #login-page p { font-size: 12px; text-align: center; }
+    .player-card { width: 140px; }
+
+    /* --- Stat boxes --- */
+    .stat-box .value { font-size: 18px; }
+    .stat-box { padding: 10px; }
+
+    /* --- Section headers --- */
+    .section-header { flex-wrap: wrap; gap: 8px; }
+
+    /* --- Form rows --- */
+    .form-row-inline { flex-wrap: wrap; }
+
+    /* --- Notifications --- */
+    #notif { right: 8px; left: 8px; bottom: 8px; width: auto; }
+    .notif-item { min-width: 0; width: 100%; box-sizing: border-box; }
+
+    /* --- Buttons in tight spaces --- */
+    .btn-sm { padding: 4px 8px; font-size: 11px; }
+
+    /* --- Admin textareas --- */
+    .admin-ta { font-size: 12px; }
+
+    /* --- Shop grid (already uses auto-fill, fine as-is; just reduce min) --- */
+    .shop-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+
+    /* --- Location dropdown --- */
+    .loc-dd { max-width: calc(100vw - 40px); }
+
+    /* --- World accordion --- */
+    .world-hdr { padding: 10px 12px; }
+    .world-hdr .world-name { font-size: 12px; }
+  }
+
 </style>
 </head>
 <body>

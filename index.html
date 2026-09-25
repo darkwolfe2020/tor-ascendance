@@ -3621,7 +3621,7 @@ function renderAdminPlayers() {
       ${adminPlayerTab==='formations'?renderAdminListEdit(p,'formations','Formations',['name','quantity','strength','category','description','misc']):''}
       ${adminPlayerTab==='assets'?renderAdminListEdit(p,'assets','Assets',['name','quantity','category','description','misc']):''}
       ${adminPlayerTab==='structures'?renderAdminListEdit(p,'structures','Structures',['name','quantity','category','description','location','locationNote','misc']):''}
-      ${adminPlayerTab==='ships'?renderAdminListEdit(p,'ships','Ships',['name','class','quantity','description','misc']):''}
+      ${adminPlayerTab==='ships'?renderAdminListEdit(p,'ships','Ships',['name','class','role','quantity','description','specifications','misc']):''}
       ${adminPlayerTab==='misc'?renderAdminListEdit(p,'miscItems','Misc Items',['name','quantity','category','description','misc']):''}
       ${adminPlayerTab==='income'?renderAdminIncomeEdit(p):''}
       ${adminPlayerTab==='populations'?renderAdminPopEdit(p):''}

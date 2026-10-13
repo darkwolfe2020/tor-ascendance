@@ -1384,15 +1384,15 @@ async function initApp() {
     const { data: row } = await sb.from('game_state').select('data').eq('id', 'main').single();
     if (row?.data) {
       const remote = (row.data._version || 0) >= DATA_VERSION ? row.data : migrateState(row.data);
+      const localTs  = STATE._savedAt  || 0;
       const remoteTs = remote._savedAt || 0;
-      // Always take Supabase on load — it is the source of truth.
-      // localStorage is only a fast-render cache; a blocked save can leave it
-      // with a newer timestamp than Supabase without actually being more current.
-      STATE = remote;
-      try {
-        localStorage.setItem('rta_state', JSON.stringify(STATE));
-      } catch(le) {
-        console.warn('localStorage full on initApp — running from Supabase only:', le);
+      if (remoteTs >= localTs) {
+        STATE = remote;
+        try {
+          localStorage.setItem('rta_state', JSON.stringify(STATE));
+        } catch(le) {
+          console.warn('localStorage full on initApp — running from Supabase only:', le);
+        }
       }
       _initRemoteTs = remoteTs; // remember what we loaded so saves can sanity-check
     }

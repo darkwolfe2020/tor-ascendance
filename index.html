@@ -418,9 +418,26 @@ function saveState() {
       const currentRemoteTs = check?.data?._savedAt || 0;
       if(currentRemoteTs > _initRemoteTs) {
         if(!isAdmin) {
-          console.warn('Supabase has newer data than our baseline — aborting write to prevent rollback.');
-          notify('⚠ Save blocked: another session has newer data. Please refresh to sync.', true);
-          return;
+          // Remote is newer (e.g. admin just approved something) — sync local state to it,
+          // then re-apply and re-save the player's own pending change on top.
+          const remoteState = check?.data;
+          if(remoteState) {
+            // Preserve any local pending requests the remote doesn't have yet
+            const localDepReqs = (STATE.deploymentRequests||[]).filter(r => r.status==='pending' && !(remoteState.deploymentRequests||[]).find(x=>x.id===r.id));
+            const localPurReqs = (STATE.purchaseRequests||[]).filter(r => r.status==='pending' && !(remoteState.purchaseRequests||[]).find(x=>x.id===r.id));
+            STATE = remoteState;
+            if(localDepReqs.length) STATE.deploymentRequests = [...(STATE.deploymentRequests||[]), ...localDepReqs];
+            if(localPurReqs.length) STATE.purchaseRequests   = [...(STATE.purchaseRequests||[]),   ...localPurReqs];
+            STATE._savedAt = Date.now();
+            try { localStorage.setItem('rta_state', JSON.stringify(STATE)); } catch(e) {}
+            _initRemoteTs = currentRemoteTs;
+            render();
+            notify('↻ Synced to latest data from server.');
+            // Fall through to write the now-merged state back
+          } else {
+            notify('⚠ Save blocked: another session has newer data. Please refresh to sync.', true);
+            return;
+          }
         }
         // Admin: merge any purchase requests players submitted while this tab was open,
         // so the admin write doesn't erase them.
